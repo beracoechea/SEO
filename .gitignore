@@ -1,0 +1,17 @@
+node_modules/
+dist/
+.venv/
+__pycache__/
+*.pyc
+*.sqlite
+*.sqlite-wal
+*.sqlite-shm
+.env
+.env.local
+.firebase/
+.DS_Store
+Thumbs.db
+*.log
+apps/runtime/data/
+!apps/runtime/data/.gitkeep
+.python-version

@@ -1,0 +1,9 @@
+services:
+  runtime:
+    build: ./apps/runtime
+    ports:
+      - "8080:8080"
+    env_file:
+      - ./apps/runtime/.env
+    volumes:
+      - ./apps/runtime/data:/app/data

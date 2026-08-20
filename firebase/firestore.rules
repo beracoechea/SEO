@@ -1,0 +1,57 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function memberOf(orgId) {
+      return signedIn() &&
+        exists(/databases/$(database)/documents/orgs/$(orgId)/members/$(request.auth.uid));
+    }
+
+    function ownerOf(orgId) {
+      return memberOf(orgId) &&
+        get(/databases/$(database)/documents/orgs/$(orgId)/members/$(request.auth.uid)).data.role == 'owner';
+    }
+
+    match /users/{uid} {
+      allow read, write: if signedIn() && request.auth.uid == uid;
+
+      match /orgIndex/{orgId} {
+        allow read, write: if signedIn() && request.auth.uid == uid;
+      }
+    }
+
+    match /orgs/{orgId} {
+      allow read: if memberOf(orgId);
+      allow create: if signedIn() && request.resource.data.createdByUid == request.auth.uid;
+      allow update: if ownerOf(orgId);
+      allow delete: if ownerOf(orgId);
+
+      match /members/{uid} {
+        allow read: if memberOf(orgId);
+        allow create: if ownerOf(orgId)
+          || (signedIn() && request.auth.uid == uid);
+        allow update, delete: if ownerOf(orgId);
+      }
+
+      match /sites/{siteId} {
+        allow read, write: if memberOf(orgId);
+      }
+
+      match /invites/{inviteId} {
+        allow read: if memberOf(orgId)
+          || (signedIn() && resource.data.email == request.auth.token.email);
+        allow create, update, delete: if ownerOf(orgId) || memberOf(orgId);
+      }
+    }
+    match /inviteIndex/{id} {
+      allow read: if signedIn() &&
+        resource.data.email == request.auth.token.email;
+      allow create: if signedIn() && memberOf(request.resource.data.orgId);
+      allow update: if signedIn() &&
+        resource.data.email == request.auth.token.email;
+    }
+  }
+}
