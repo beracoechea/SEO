@@ -53,7 +53,6 @@
   "sites.agoMin": "{{n}} min ago",
   "sites.agoHour": "{{n}} h ago",
   "sites.agoDay": "{{n}} d ago",
-  "sites.httpScoreHint": "Technical HTTP/on-page score. Not Lighthouse or Core Web Vitals.",
   "sites.trend": "Scan trend",
   "sites.trendStart": "First scan",
   "sites.trendUp": "Improved",

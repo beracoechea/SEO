@@ -54,6 +54,7 @@ El versionado sigue [SemVer](https://semver.org/lang/es/).
 - Pestaña y pantalla **Ajustes** de la organización. El motor de escaneo ya no se configura ahí; el cupo se ve en Sitios y el nombre/cupos se administran en `/admin`.
 - Sparkline de línea roja en las tarjetas de sitio.
 - Guardado de `photoUrl` en Firestore; la foto sale de Google Auth.
+- El pie de Sitios que decía que el score no es Lighthouse ni Core Web Vitals.
 
 ## [0.1.0] — 2026-08-20
 

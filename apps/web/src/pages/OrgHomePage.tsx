@@ -257,7 +257,6 @@ export function OrgHomePage() {
           })}
         </div>
       )}
-      <p className="muted">{t("sites.httpScoreHint")}</p>
       {canAdd ? (
         <IconBtn
           className="fab"

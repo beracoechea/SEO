@@ -53,7 +53,6 @@
   "sites.agoMin": "hace {{n}} min",
   "sites.agoHour": "hace {{n}} h",
   "sites.agoDay": "hace {{n}} d",
-  "sites.httpScoreHint": "Score técnico HTTP/on-page. No es Lighthouse ni Core Web Vitals.",
   "sites.trend": "Tendencia por escaneo",
   "sites.trendStart": "Primer escaneo",
   "sites.trendUp": "Mejoró",
