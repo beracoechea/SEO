@@ -13,3 +13,9 @@ def test_chain_keeps_redirects_issue():
     _score, issues = score_url(200, "Home page title", "Home", "desc", hops=3)
     assert "redirect" in issues
     assert "redirects" in issues
+
+
+def test_nofollow_is_warning():
+    _score, issues = score_url(200, "Home page title", "Home", "desc", nofollow=True)
+    assert "nofollow" in issues
+    assert classify_issues(issues) == "warn"

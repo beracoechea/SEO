@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ExternalLink } from "lucide-react";
 import type { PageSnap } from "../lib/runtime";
-import { issueCodes } from "../lib/pageFilter";
+import { issueCodes, pageFetched } from "../lib/pageFilter";
 
 const PAGE_SIZE = 30;
 
@@ -44,7 +44,11 @@ export function UrlFeed({ pages }: { pages: PageSnap[] }) {
             </a>
             {p.title ? <div className="url-card-title">{p.title}</div> : null}
             <div className="url-card-meta">
-              <span>HTTP {p.redirect_status && p.redirect_status !== p.status ? `${p.redirect_status} → ${p.status || "—"}` : p.status || "—"}</span>
+              <span>
+                {pageFetched(p)
+                  ? `HTTP ${p.redirect_status && p.redirect_status !== p.status ? `${p.redirect_status} → ${p.status || "—"}` : p.status || "—"}`
+                  : t("audit.notFetched")}
+              </span>
               <span>{p.ms != null ? `${p.ms} ms` : "—"}</span>
               <span>{t("audit.score")} {p.score}</span>
               {(p.hops || 0) > 0 ? <span>{t("audit.hops", { n: p.hops })}</span> : null}

@@ -12,9 +12,22 @@ export type PageFilter =
   | "ok"
   | "sitemap"
   | "slow"
-  | "dupTitles";
+  | "dupTitles"
+  | "noindex"
+  | "nofollow"
+  | "orphan"
+  | "sitemap404"
+  | "sitemapBlocked"
+  | "sitemapNoindex"
+  | "notInSitemap"
+  | "diffAdded"
+  | "diffRemoved"
+  | "diffNew404"
+  | "diffRecovered"
+  | "diffNewNoindex"
+  | "diffTitle";
 
-export type PageHttpClass = "ok" | "redirect" | "client" | "server";
+export type PageHttpClass = "ok" | "redirect" | "client" | "server" | "skip";
 
 function stripUrl(value: string): string {
   return value.trim().replace(/\/+$/, "").toLowerCase();
@@ -27,6 +40,17 @@ export function issueCodes(page: PageSnap): string[] {
     .filter(Boolean);
 }
 
+export function diffFlags(page: PageSnap): string[] {
+  return (page.diff || "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
+export function pageFetched(page: PageSnap): boolean {
+  return page.fetched !== 0;
+}
+
 export function pageHadRedirect(page: PageSnap): boolean {
   if ((page.hops || 0) >= 1) return true;
   const code = page.redirect_status || 0;
@@ -37,6 +61,7 @@ export function pageHadRedirect(page: PageSnap): boolean {
 }
 
 export function pageHttpClass(page: PageSnap): PageHttpClass {
+  if (!pageFetched(page) || diffFlags(page).includes("removed")) return "skip";
   const status = page.status || 0;
   if (status === 0 || status >= 500) return "server";
   if (status >= 400) return "client";
@@ -46,7 +71,11 @@ export function pageHttpClass(page: PageSnap): PageHttpClass {
 
 export function httpMixFromPages(pages: PageSnap[]): HttpMix {
   const mix: HttpMix = { ok: 0, redirect: 0, client: 0, server: 0 };
-  for (const page of pages) mix[pageHttpClass(page)] += 1;
+  for (const page of pages) {
+    const klass = pageHttpClass(page);
+    if (klass === "skip") continue;
+    mix[klass] += 1;
+  }
   return mix;
 }
 
@@ -88,10 +117,12 @@ export function filterPages(pages: PageSnap[], filter: PageFilter): PageSnap[] {
   return pages.filter((p) => {
     const klass = pageHttpClass(p);
     const codes = issueCodes(p);
+    const flags = diffFlags(p);
     switch (filter) {
       case "all":
+        return pageFetched(p) && !flags.includes("removed");
       case "sitemap":
-        return true;
+        return Boolean(p.in_sitemap);
       case "http200":
         return klass === "ok";
       case "http3xx":
@@ -112,6 +143,32 @@ export function filterPages(pages: PageSnap[], filter: PageFilter): PageSnap[] {
         const key = (p.title || "").trim().toLowerCase();
         return Boolean(key && dups?.has(key));
       }
+      case "noindex":
+        return codes.includes("noindex");
+      case "nofollow":
+        return codes.includes("nofollow");
+      case "orphan":
+        return codes.includes("orphan");
+      case "sitemap404":
+        return codes.includes("sitemap404");
+      case "sitemapBlocked":
+        return codes.includes("sitemapBlocked");
+      case "sitemapNoindex":
+        return codes.includes("sitemapNoindex");
+      case "notInSitemap":
+        return pageFetched(p) && !p.in_sitemap && (klass === "ok" || klass === "redirect");
+      case "diffAdded":
+        return flags.includes("added");
+      case "diffRemoved":
+        return flags.includes("removed");
+      case "diffNew404":
+        return flags.includes("new404");
+      case "diffRecovered":
+        return flags.includes("recovered404");
+      case "diffNewNoindex":
+        return flags.includes("newNoindex");
+      case "diffTitle":
+        return flags.includes("titleChanged");
       default:
         return true;
     }

@@ -10,7 +10,7 @@ import { StatusBars } from "../components/StatusBars";
 import { UrlFeed } from "../components/UrlFeed";
 import { getOrg, getSite, type Org, type Site } from "../lib/db";
 import { filterPages, httpMixFromPages, type PageFilter } from "../lib/pageFilter";
-import { getSiteSummary, listSiteSummaries, resolvedRuntimeUrl, startCrawl, type CrawlRow, type PageSnap } from "../lib/runtime";
+import { getSiteSummary, listSiteSummaries, resolvedRuntimeUrl, startCrawl, type CrawlDiff, type CrawlRow, type PageSnap } from "../lib/runtime";
 import { crawlProgressPercent } from "../lib/score";
 
 const HTTP_KPIS: { filter: PageFilter; tone: "ok" | "info" | "warn" | "danger"; label: string; help: string }[] = [
@@ -20,13 +20,32 @@ const HTTP_KPIS: { filter: PageFilter; tone: "ok" | "info" | "warn" | "danger"; 
   { filter: "http5xx", tone: "danger", label: "audit.http5xx", help: "filter.http5xx" },
 ];
 
-const FINDING_KPIS: { filter: PageFilter; tone: "ok" | "info" | "warn" | "danger"; label: string; help: string }[] = [
-  { filter: "critical", tone: "danger", label: "audit.critical", help: "filter.critical" },
-  { filter: "warning", tone: "warn", label: "audit.warning", help: "filter.warning" },
-  { filter: "ok", tone: "ok", label: "audit.ok", help: "filter.ok" },
-  { filter: "sitemap", tone: "info", label: "audit.sitemap", help: "filter.sitemap" },
-  { filter: "slow", tone: "info", label: "audit.avgMs", help: "filter.slow" },
-  { filter: "dupTitles", tone: "warn", label: "audit.dupTitles", help: "filter.dupTitles" },
+const FINDING_KPIS: { filter: PageFilter; tone: "ok" | "info" | "warn" | "danger"; label: string }[] = [
+  { filter: "critical", tone: "danger", label: "audit.critical" },
+  { filter: "warning", tone: "warn", label: "audit.warning" },
+  { filter: "ok", tone: "ok", label: "audit.ok" },
+  { filter: "sitemap", tone: "info", label: "audit.sitemap" },
+  { filter: "slow", tone: "info", label: "audit.avgMs" },
+  { filter: "dupTitles", tone: "warn", label: "audit.dupTitles" },
+];
+
+const INDEX_KPIS: { filter: PageFilter; tone: "ok" | "info" | "warn" | "danger"; label: string }[] = [
+  { filter: "noindex", tone: "warn", label: "audit.noindex" },
+  { filter: "nofollow", tone: "warn", label: "audit.nofollow" },
+  { filter: "orphan", tone: "warn", label: "audit.orphan" },
+  { filter: "sitemap404", tone: "danger", label: "audit.sitemap404" },
+  { filter: "sitemapBlocked", tone: "warn", label: "audit.sitemapBlocked" },
+  { filter: "sitemapNoindex", tone: "warn", label: "audit.sitemapNoindex" },
+  { filter: "notInSitemap", tone: "info", label: "audit.notInSitemap" },
+];
+
+const DIFF_KPIS: { filter: PageFilter; tone: "ok" | "info" | "warn" | "danger"; label: string }[] = [
+  { filter: "diffNew404", tone: "danger", label: "audit.diffNew404" },
+  { filter: "diffRecovered", tone: "ok", label: "audit.diffRecovered" },
+  { filter: "diffNewNoindex", tone: "warn", label: "audit.diffNewNoindex" },
+  { filter: "diffTitle", tone: "info", label: "audit.diffTitle" },
+  { filter: "diffAdded", tone: "info", label: "audit.diffAdded" },
+  { filter: "diffRemoved", tone: "warn", label: "audit.diffRemoved" },
 ];
 
 export function SitePlaceholderPage() {
@@ -36,6 +55,7 @@ export function SitePlaceholderPage() {
   const [site, setSite] = useState<Site | null>(null);
   const [crawl, setCrawl] = useState<CrawlRow | null>(null);
   const [pages, setPages] = useState<PageSnap[]>([]);
+  const [diff, setDiff] = useState<CrawlDiff | null>(null);
   const [busy, setBusy] = useState(false);
   const [lockedBy, setLockedBy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -51,6 +71,7 @@ export function SitePlaceholderPage() {
       const next = await getSiteSummary(runtime, siteId);
       setCrawl(next.crawl);
       setPages(next.pages);
+      setDiff(next.diff ?? null);
       const overview = await listSiteSummaries(runtime);
       const activeId = overview.active?.site_id ?? null;
       setLockedBy(activeId && activeId !== siteId ? activeId : null);
@@ -167,6 +188,7 @@ export function SitePlaceholderPage() {
   const pct = running ? crawlProgressPercent(crawl || { status: "running", pages_crawled: 0 }) : null;
   const found = Math.max(crawl?.discovered || 0, crawl?.sitemap_urls || 0, crawl?.pages_crawled || 0);
   const filtered = useMemo(() => filterPages(pages, filter), [pages, filter]);
+  const allKpis = [...HTTP_KPIS, ...FINDING_KPIS, ...INDEX_KPIS, ...DIFF_KPIS];
   const httpValues: Record<string, number> = {
     http200: mix.ok,
     http3xx: mix.redirect,
@@ -177,9 +199,20 @@ export function SitePlaceholderPage() {
     critical: crawl?.issue_critical ?? 0,
     warning: crawl?.issue_warn ?? 0,
     ok: crawl?.issue_ok ?? 0,
-    sitemap: crawl?.sitemap_urls ?? 0,
+    sitemap: pages.length ? filterPages(pages, "sitemap").length : (crawl?.sitemap_urls ?? 0),
     slow: crawl?.avg_ms ?? 0,
     dupTitles: crawl?.dup_titles ?? 0,
+  };
+  const indexValues: Record<string, number> = Object.fromEntries(
+    INDEX_KPIS.map((item) => [item.filter, filterPages(pages, item.filter).length]),
+  );
+  const diffValues: Record<string, number> = {
+    diffNew404: diff?.counts.new_404 ?? 0,
+    diffRecovered: diff?.counts.recovered_404 ?? 0,
+    diffNewNoindex: diff?.counts.new_noindex ?? 0,
+    diffTitle: diff?.counts.title_changed ?? 0,
+    diffAdded: diff?.counts.added ?? 0,
+    diffRemoved: diff?.counts.removed ?? 0,
   };
 
   return (
@@ -272,9 +305,50 @@ export function SitePlaceholderPage() {
         ))}
       </div>
 
+      {pages.length > 0 ? (
+        <>
+          <h2 style={{ margin: 0, fontSize: 16 }}>{t("audit.indexMap")}</h2>
+          <div className="kpi-grid">
+            {INDEX_KPIS.map((item) => (
+              <Kpi
+                key={item.filter}
+                tone={item.tone}
+                label={t(item.label)}
+                value={indexValues[item.filter]}
+                active={filter === item.filter}
+                onSelect={() => toggleFilter(item.filter)}
+                onInfo={() => setHint(item.filter)}
+                infoLabel={t("audit.whatIsThis")}
+              />
+            ))}
+          </div>
+        </>
+      ) : null}
+
+      {diff ? (
+        <>
+          <h2 style={{ margin: 0, fontSize: 16 }}>{t("audit.diffTitleSection")}</h2>
+          <p className="muted">{t("audit.diffHint")}</p>
+          <div className="kpi-grid">
+            {DIFF_KPIS.map((item) => (
+              <Kpi
+                key={item.filter}
+                tone={item.tone}
+                label={t(item.label)}
+                value={diffValues[item.filter]}
+                active={filter === item.filter}
+                onSelect={() => toggleFilter(item.filter)}
+                onInfo={() => setHint(item.filter)}
+                infoLabel={t("audit.whatIsThis")}
+              />
+            ))}
+          </div>
+        </>
+      ) : null}
+
       {hint ? (
         <KpiHint
-          title={t(HTTP_KPIS.concat(FINDING_KPIS).find((k) => k.filter === hint)?.label || "audit.pages")}
+          title={t(allKpis.find((k) => k.filter === hint)?.label || "audit.pages")}
           body={t(`filter.${hint}`)}
           onClose={() => setHint(null)}
           closeLabel={t("audit.gotIt")}

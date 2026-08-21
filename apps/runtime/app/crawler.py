@@ -12,6 +12,7 @@ from uuid import uuid4
 import httpx
 
 from app.db import connect
+from app.indexation import robots_directives
 from app.parse import (
     assert_public_http_url,
     canonical_matches,
@@ -51,7 +52,7 @@ def _is_htmlish(content_type: str) -> bool:
 
 
 class Fetch:
-    __slots__ = ("status", "text", "hops", "final", "ms", "content_type", "content", "redirect_status")
+    __slots__ = ("status", "text", "hops", "final", "ms", "content_type", "content", "redirect_status", "robots_tag")
 
     def __init__(
         self,
@@ -63,6 +64,7 @@ class Fetch:
         content_type: str,
         content: bytes,
         redirect_status: int = 0,
+        robots_tag: str = "",
     ) -> None:
         self.status = status
         self.text = text
@@ -72,6 +74,7 @@ class Fetch:
         self.content_type = content_type
         self.content = content
         self.redirect_status = redirect_status
+        self.robots_tag = robots_tag
 
 
 async def _get(client: httpx.AsyncClient, url: str) -> Fetch:
@@ -93,7 +96,8 @@ async def _get(client: httpx.AsyncClient, url: str) -> Fetch:
             return Fetch(0, "", hops, current, ms, "", b"", first_3xx)
         ct = res.headers.get("content-type", "")
         text = res.text if _is_htmlish(ct) else ""
-        last = Fetch(res.status_code, text, hops, current, 0, ct, res.content, first_3xx)
+        tag = res.headers.get("x-robots-tag") or ""
+        last = Fetch(res.status_code, text, hops, current, 0, ct, res.content, first_3xx, tag)
         if res.is_redirect:
             if not first_3xx:
                 first_3xx = res.status_code
@@ -165,7 +169,8 @@ def _record_page(
     title = str(parsed.get("title") or "")
     canonical = str(parsed.get("canonical") or "")
     robots_meta = str(parsed.get("robots_meta") or "")
-    noindex = "noindex" in robots_meta
+    robots_header = fetch.robots_tag or ""
+    noindex, nofollow = robots_directives(robots_meta, robots_header)
     has_canonical = bool(canonical) if expect_html and fetch.status == 200 else True
     canon_ok = canonical_matches(url, canonical) if expect_html else True
     sc, issues = score_url(
@@ -180,6 +185,7 @@ def _record_page(
         canonical_ok=canon_ok,
         has_canonical=has_canonical,
         noindex=noindex,
+        nofollow=nofollow,
         ms=fetch.ms,
     )
     level = classify_issues(issues)
@@ -189,8 +195,8 @@ def _record_page(
     if expect_html and title:
         titles.append(title.strip().lower())
     con.execute(
-        """INSERT INTO snapshots(crawl_id, url, status, depth, title, h1, meta, canonical, score, issues, fetched_at, ms, final_url, robots_meta, hops, redirect_status)
-           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+        """INSERT INTO snapshots(crawl_id, url, status, depth, title, h1, meta, canonical, score, issues, fetched_at, ms, final_url, robots_meta, hops, redirect_status, robots_header, fetched)
+           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,1)""",
         (
             crawl_id,
             url,
@@ -208,10 +214,89 @@ def _record_page(
             robots_meta if expect_html else "",
             fetch.hops,
             fetch.redirect_status or 0,
+            robots_header,
         ),
     )
     links = parsed.get("links") if expect_html and fetch.status < 400 else []
     return list(links) if isinstance(links, list) else []
+
+
+def _merge_issues(existing: str, extra: list[str]) -> str:
+    found = [c for c in (existing or "").split(",") if c]
+    for code in extra:
+        if code not in found:
+            found.append(code)
+    return ",".join(found)
+
+
+def _finalize_indexation(
+    con,
+    crawl_id: str,
+    sitemap_set: set[str],
+    link_set: set[str],
+    seed_set: set[str],
+    blocked_sitemap: set[str],
+) -> None:
+    rows = con.execute(
+        "SELECT id, url, status, score, issues, fetched FROM snapshots WHERE crawl_id=?",
+        (crawl_id,),
+    ).fetchall()
+    have = {row["url"] for row in rows}
+    for url in blocked_sitemap:
+        if url in have:
+            continue
+        con.execute(
+            """INSERT INTO snapshots(crawl_id, url, status, depth, title, h1, meta, canonical, score, issues, fetched_at, ms, final_url, robots_meta, hops, redirect_status, in_sitemap, via_link, via_sitemap, robots_header, fetched)
+               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,0)""",
+            (
+                crawl_id,
+                url,
+                0,
+                1,
+                "",
+                "",
+                "",
+                "",
+                92,
+                "sitemapBlocked",
+                _now(),
+                0,
+                url,
+                "",
+                0,
+                0,
+                1,
+                0,
+                1,
+                "",
+            ),
+        )
+    rows = con.execute(
+        "SELECT id, url, status, score, issues, fetched FROM snapshots WHERE crawl_id=?",
+        (crawl_id,),
+    ).fetchall()
+    for row in rows:
+        url = row["url"]
+        in_sm = 1 if url in sitemap_set else 0
+        via_sm = in_sm
+        via_link = 1 if url in link_set else 0
+        extra: list[str] = []
+        score = int(row["score"] or 0)
+        fetched = int(row["fetched"] if row["fetched"] is not None else 1)
+        if fetched and in_sm and 400 <= int(row["status"] or 0) < 500:
+            extra.append("sitemap404")
+        if fetched and in_sm and "noindex" in (row["issues"] or "").split(","):
+            extra.append("sitemapNoindex")
+            score = max(0, score - 8)
+        if in_sm and not via_link and url not in seed_set and fetched:
+            extra.append("orphan")
+            score = max(0, score - 4)
+        issues = _merge_issues(row["issues"] or "", extra)
+        con.execute(
+            "UPDATE snapshots SET in_sitemap=?, via_link=?, via_sitemap=?, issues=?, score=? WHERE id=?",
+            (in_sm, via_link, via_sm, issues, score, row["id"]),
+        )
+    con.commit()
 
 
 def _progress(
@@ -237,7 +322,7 @@ def _progress(
     score = site_score(snaps) if snaps else None
     if dups:
         score = max(0, (score or 0) - min(15, dups * 2))
-    crawled = len(snaps)
+    crawled = len([s for s in snaps])
     found = max(discovered, crawled, sitemap_count)
     con.execute(
         """UPDATE crawls SET status=?, score=?, finished_at=?, urls_ok=?, urls_3xx=?, urls_4xx=?, urls_5xx=?,
@@ -312,21 +397,37 @@ async def run_crawl(
         async with make_client(headers=headers, timeout=12.0) as client:
             queue: deque[tuple[str, int]] = deque()
             seen: set[str] = set()
+            sitemap_set: set[str] = set()
+            link_set: set[str] = set()
+            seed_set: set[str] = set()
+            blocked_sitemap: set[str] = set()
 
-            def enqueue(url: str, depth: int, base: str = origin + "/") -> None:
-                if len(seen) >= cap:
-                    return
+            def enqueue(url: str, depth: int, base: str = origin + "/", via: str = "link") -> None:
                 if depth > max_depth:
                     return
                 norm = normalize_url(url, base)
-                if not norm or norm in seen:
+                if not norm:
                     return
                 if not same_host(norm, host_origin):
                     return
                 if is_asset_url(norm):
                     return
+                if via == "sitemap":
+                    sitemap_set.add(norm)
+                elif via == "seed":
+                    seed_set.add(norm)
+                else:
+                    link_set.add(norm)
                 path = urlparse(norm).path or "/"
-                if robots_blocks(path, disallow):
+                blocked = robots_blocks(path, disallow)
+                if via == "sitemap" and blocked:
+                    blocked_sitemap.add(norm)
+                    return
+                if blocked:
+                    return
+                if norm in seen:
+                    return
+                if len(seen) >= cap:
                     return
                 seen.add(norm)
                 queue.append((norm, depth))
@@ -336,12 +437,12 @@ async def run_crawl(
                 assert_public_http_url(target)
                 if urlparse(target).hostname != urlparse(origin).hostname:
                     raise ValueError("urlMustMatchOrigin")
-                enqueue(target, 0)
+                enqueue(target, 0, via="seed")
             else:
-                enqueue(origin + "/", 0)
+                enqueue(origin + "/", 0, via="seed")
                 for t in template_urls[:100]:
                     if t.strip():
-                        enqueue(t.strip(), 1)
+                        enqueue(t.strip(), 1, via="seed")
 
                 try:
                     robots = await _get(client, origin + "/robots.txt")
@@ -373,7 +474,7 @@ async def run_crawl(
                         sitemap_count += len(locs)
                         if kind == "site":
                             for loc in locs:
-                                enqueue(loc, 1, sm)
+                                enqueue(loc, 1, sm, via="sitemap")
                 for sm in nested[:80]:
                     try:
                         fetch = await _get(client, sm)
@@ -387,7 +488,7 @@ async def run_crawl(
                     sitemap_count += len(locs)
                     if kind == "site":
                         for loc in locs:
-                            enqueue(loc, 1, sm)
+                            enqueue(loc, 1, sm, via="sitemap")
 
             crawled = 0
             while queue and crawled < cap:
@@ -407,7 +508,7 @@ async def run_crawl(
                 final = fetch.final or url
                 if kind == "site" and expect_html and fetch.status < 400 and same_host(final, host_origin):
                     for href in links:
-                        enqueue(href, depth + 1, final)
+                        enqueue(href, depth + 1, final, via="link")
                 found = max(sitemap_count, crawled + len(queue))
                 if crawled % 2 == 0 or crawled == 1:
                     _progress(
@@ -415,7 +516,8 @@ async def run_crawl(
                     )
                 await asyncio.sleep(delay)
 
-        found = max(sitemap_count, len(snaps))
+        found = max(sitemap_count, len(snaps), len(sitemap_set))
+        _finalize_indexation(con, crawl_id, sitemap_set, link_set, seed_set, blocked_sitemap)
         _progress(con, crawl_id, snaps, buckets, counts, sitemap_count, titles, cap, True, times, found)
     except Exception as exc:
         con.execute(

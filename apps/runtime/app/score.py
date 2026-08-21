@@ -13,6 +13,7 @@ def score_url(
     canonical_ok: bool = True,
     has_canonical: bool = True,
     noindex: bool = False,
+    nofollow: bool = False,
     ms: int = 0,
 ) -> tuple[int, list[str]]:
     n = 100
@@ -55,6 +56,9 @@ def score_url(
         if noindex:
             n -= 6
             issues.append("noindex")
+        if nofollow:
+            n -= 4
+            issues.append("nofollow")
         if ms >= 2000:
             n -= 8
             issues.append("slow")

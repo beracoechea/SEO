@@ -167,6 +167,129 @@ def test_redirect_lands_in_3xx_not_200(tmp_path, monkeypatch):
         assert summ["crawl"]["urls_3xx"] >= 1
 
 
+def _html(title: str, path: str, links: list[str]) -> str:
+    anchors = "".join(f'<a href="{href}">{href}</a>' for href in links)
+    return (
+        f"<html><head><title>{title}</title><meta name='description' content='{title}'>"
+        f"<link rel='canonical' href='https://www.example.com{path}'></head>"
+        f"<body><h1>{title}</h1>{anchors}</body></html>"
+    )
+
+
+def test_indexation_map_sitemap_robots_orphans(tmp_path, monkeypatch):
+    monkeypatch.setenv("DATA_DIR", str(tmp_path))
+    monkeypatch.setenv("ALLOW_ANON", "1")
+    monkeypatch.setenv("CRAWL_NO_DELAY", "1")
+    init_db()
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        path = request.url.path.rstrip("/") or "/"
+        if path.endswith("robots.txt"):
+            return httpx.Response(
+                200,
+                text="User-agent: *\nDisallow: /hidden\nSitemap: /sitemap.xml\n",
+                headers={"content-type": "text/plain"},
+            )
+        if path.endswith("sitemap.xml"):
+            body = """<urlset>
+              <loc>https://www.example.com/</loc>
+              <loc>https://www.example.com/about</loc>
+              <loc>https://www.example.com/hidden</loc>
+              <loc>https://www.example.com/gone</loc>
+              <loc>https://www.example.com/orphan</loc>
+            </urlset>"""
+            return httpx.Response(200, text=body, headers={"content-type": "application/xml"})
+        if path == "/about":
+            return httpx.Response(
+                200,
+                text=_html("About", "/about", []),
+                headers={"content-type": "text/html", "x-robots-tag": "noindex"},
+            )
+        if path == "/gone":
+            return httpx.Response(404, text="missing")
+        if path == "/orphan":
+            return httpx.Response(200, text=_html("Orphan", "/orphan", []), headers={"content-type": "text/html"})
+        if path == "/only-linked":
+            return httpx.Response(200, text=_html("Linked", "/only-linked", []), headers={"content-type": "text/html"})
+        if path == "/hidden":
+            raise AssertionError("must not fetch robots-disallowed URL")
+        return httpx.Response(
+            200,
+            text=_html("Home", "/", ["/about", "/only-linked"]),
+            headers={"content-type": "text/html"},
+        )
+
+    transport = httpx.MockTransport(handler)
+    monkeypatch.setattr(
+        "app.crawler.make_client",
+        lambda **kw: httpx.AsyncClient(transport=transport, timeout=kw.get("timeout", 10.0), headers=kw.get("headers")),
+    )
+
+    with TestClient(app) as client:
+        res = client.post(
+            "/api/sites/idx/crawls",
+            json={"kind": "site", "origin": "https://www.example.com", "maxPages": 20},
+        )
+        assert res.status_code == 200, res.text
+        summ = client.get("/api/sites/idx/summary").json()
+        hidden = next(p for p in summ["pages"] if p["url"].rstrip("/").endswith("/hidden"))
+        assert hidden["fetched"] == 0
+        assert "sitemapBlocked" in (hidden["issues"] or "")
+        about = next(p for p in summ["pages"] if p["url"].rstrip("/").endswith("/about"))
+        assert "noindex" in (about["issues"] or "")
+        assert "sitemapNoindex" in (about["issues"] or "")
+        gone = next(p for p in summ["pages"] if p["url"].rstrip("/").endswith("/gone"))
+        assert "sitemap404" in (gone["issues"] or "")
+        orphan = next(p for p in summ["pages"] if p["url"].rstrip("/").endswith("/orphan"))
+        assert "orphan" in (orphan["issues"] or "")
+        linked = next(p for p in summ["pages"] if p["url"].rstrip("/").endswith("/only-linked"))
+        assert not linked.get("in_sitemap")
+
+
+def test_crawl_diff_detects_new_404(tmp_path, monkeypatch):
+    monkeypatch.setenv("DATA_DIR", str(tmp_path))
+    monkeypatch.setenv("ALLOW_ANON", "1")
+    monkeypatch.setenv("CRAWL_NO_DELAY", "1")
+    init_db()
+    wave = {"n": 0}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        path = request.url.path.rstrip("/") or "/"
+        if path.endswith("robots.txt"):
+            return httpx.Response(200, text="User-agent: *\nAllow: /\n", headers={"content-type": "text/plain"})
+        if "sitemap" in path:
+            return httpx.Response(404, text="missing")
+        if path == "/about":
+            if wave["n"] >= 1:
+                return httpx.Response(404, text="gone")
+            return httpx.Response(200, text=_html("About", "/about", []), headers={"content-type": "text/html"})
+        return httpx.Response(
+            200,
+            text=_html("Home", "/", ["/about"]),
+            headers={"content-type": "text/html"},
+        )
+
+    transport = httpx.MockTransport(handler)
+    monkeypatch.setattr(
+        "app.crawler.make_client",
+        lambda **kw: httpx.AsyncClient(transport=transport, timeout=kw.get("timeout", 10.0), headers=kw.get("headers")),
+    )
+
+    with TestClient(app) as client:
+        assert client.post(
+            "/api/sites/diffy/crawls",
+            json={"kind": "site", "origin": "https://www.example.com", "maxPages": 10},
+        ).status_code == 200
+        wave["n"] = 1
+        assert client.post(
+            "/api/sites/diffy/crawls",
+            json={"kind": "site", "origin": "https://www.example.com", "maxPages": 10},
+        ).status_code == 200
+        summ = client.get("/api/sites/diffy/summary").json()
+        assert summ["diff"]
+        assert summ["diff"]["counts"]["new_404"] >= 1
+
+
 def test_crawl_rejects_private_origin(tmp_path, monkeypatch):
     monkeypatch.setenv("DATA_DIR", str(tmp_path))
     monkeypatch.setenv("ALLOW_ANON", "1")

@@ -46,7 +46,12 @@ CREATE TABLE IF NOT EXISTS snapshots (
   final_url TEXT,
   robots_meta TEXT,
   hops INTEGER DEFAULT 0,
-  redirect_status INTEGER DEFAULT 0
+  redirect_status INTEGER DEFAULT 0,
+  in_sitemap INTEGER DEFAULT 0,
+  via_link INTEGER DEFAULT 0,
+  via_sitemap INTEGER DEFAULT 0,
+  robots_header TEXT,
+  fetched INTEGER DEFAULT 1
 );
 CREATE INDEX IF NOT EXISTS idx_snaps_crawl ON snapshots(crawl_id);
 CREATE INDEX IF NOT EXISTS idx_crawls_site ON crawls(site_id, started_at);
@@ -67,6 +72,11 @@ EXTRA_COLS = {
         "robots_meta": "TEXT",
         "hops": "INTEGER DEFAULT 0",
         "redirect_status": "INTEGER DEFAULT 0",
+        "in_sitemap": "INTEGER DEFAULT 0",
+        "via_link": "INTEGER DEFAULT 0",
+        "via_sitemap": "INTEGER DEFAULT 0",
+        "robots_header": "TEXT",
+        "fetched": "INTEGER DEFAULT 1",
     },
 }
 

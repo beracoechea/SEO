@@ -48,9 +48,23 @@ describe("filterPages", () => {
     expect(filterPages([redirected, direct], "http200").map((p) => p.url)).toEqual(["https://www.example.com/"]);
   });
 
-  it("all y sitemap no ocultan filas", () => {
+  it("all lista lo pedido; sitemap solo las del XML", () => {
     const all: PageFilter = "all";
     expect(filterPages(pages, all)).toHaveLength(pages.length);
-    expect(filterPages(pages, "sitemap")).toHaveLength(pages.length);
+    const mapped = pages.map((p, i) => ({ ...p, in_sitemap: i < 2 ? 1 : 0 }));
+    expect(filterPages(mapped, "sitemap")).toHaveLength(2);
+  });
+
+  it("separa indexación y diff", () => {
+    const rows = [
+      page({ url: "/n", issues: "noindex,sitemapNoindex", in_sitemap: 1 }),
+      page({ url: "/o", issues: "orphan", in_sitemap: 1 }),
+      page({ url: "/b", issues: "sitemapBlocked", in_sitemap: 1, fetched: 0, status: 0 }),
+      page({ url: "/x", issues: "http4xx,sitemap404", status: 404, in_sitemap: 1, diff: "new404" }),
+    ];
+    expect(filterPages(rows, "orphan").map((p) => p.url)).toEqual(["/o"]);
+    expect(filterPages(rows, "sitemapBlocked").map((p) => p.url)).toEqual(["/b"]);
+    expect(filterPages(rows, "diffNew404").map((p) => p.url)).toEqual(["/x"]);
+    expect(httpMixFromPages(rows)).toEqual({ ok: 2, redirect: 0, client: 1, server: 0 });
   });
 });

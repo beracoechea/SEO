@@ -39,6 +39,18 @@ export type RuntimeOverview = {
   active: CrawlRow | null;
 };
 
+export type CrawlDiff = {
+  previous_at: string | null;
+  counts: {
+    added: number;
+    removed: number;
+    new_404: number;
+    recovered_404: number;
+    new_noindex: number;
+    title_changed: number;
+  };
+};
+
 export type PageSnap = {
   url: string;
   status: number;
@@ -54,6 +66,12 @@ export type PageSnap = {
   robots_meta?: string | null;
   hops?: number;
   redirect_status?: number;
+  in_sitemap?: number;
+  via_link?: number;
+  via_sitemap?: number;
+  robots_header?: string | null;
+  fetched?: number;
+  diff?: string;
 };
 
 export function resolvedRuntimeUrl(orgUrl?: string | null): string {
@@ -123,11 +141,15 @@ export async function startCrawl(
   });
 }
 
-export async function getSiteSummary(runtimeUrl: string, siteId: string): Promise<{ crawl: CrawlRow | null; pages: PageSnap[] }> {
+export async function getSiteSummary(
+  runtimeUrl: string,
+  siteId: string,
+): Promise<{ crawl: CrawlRow | null; pages: PageSnap[]; diff: CrawlDiff | null }> {
   const body = await runtimeFetch(runtimeUrl, `/api/sites/${encodeURIComponent(siteId)}/summary`);
   return {
     crawl: (body.crawl as CrawlRow | null) ?? null,
     pages: (body.pages as PageSnap[]) ?? [],
+    diff: (body.diff as CrawlDiff | null) ?? null,
   };
 }
 

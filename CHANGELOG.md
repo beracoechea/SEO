@@ -14,7 +14,8 @@ El versionado sigue [SemVer](https://semver.org/lang/es/).
 - Burbuja de cupo sitios usados/permitidos y banner de escaneo en progreso (llenado tipo agua) en la home de la org.
 - Botones de volver más visibles e interruptor ES/EN con el idioma activo resaltado.
 - Exportar informe Excel (resumen, gráficos HTTP/hallazgos y listado de URLs con saltos, destino, status y hallazgos).
-- El crawler guarda hops y el código 3xx intermedio: una URL que abre en 200 tras un 301/302 se cataloga en redirecciones, no como página OK directa.
+- Mapa de indexación: `X-Robots-Tag` + meta robots, sitemap vs crawl, huérfanas, sitemap en 404, sitemap bloqueado por robots.txt, noindex en el XML, URLs fuera del sitemap.
+- Diff entre escaneos: 404 nuevos/recuperados, noindex nuevo, titles cambiados, URLs añadidas o que ya no se piden.
 - Cáscara web: login Google, i18n es/en, orgs, sitios, equipo, ajustes de runtime.
 - Consola web de administración (`/admin`): todas las orgs, usuarios, cupos de sitios/páginas, conceder o restringir accesos.
 - Este monitor usa Firestore **named database `webs`** en el proyecto Blaze compartido. Auth es el mismo; `(default)` no se toca.
@@ -26,6 +27,7 @@ El versionado sigue [SemVer](https://semver.org/lang/es/).
 ### Changed
 
 - Las etiquetas HTTP en la UI hablan en claro (páginas OK, redirecciones, página no encontrada, error del servidor) en lugar de solo 200/3xx/4xx/5xx.
+- El noindex considera meta robots y la cabecera `X-Robots-Tag`. El sitemap del listado cruza locs del XML con lo rastreado (incluye bloqueadas por robots.txt, sin pedirlas).
 
 ## [0.1.0] — 2026-08-20
 

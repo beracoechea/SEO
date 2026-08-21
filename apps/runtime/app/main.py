@@ -14,6 +14,7 @@ from pydantic import BaseModel, Field
 from app import __version__
 from app.crawler import run_crawl
 from app.db import connect, init_db
+from app.indexation import diff_rows, url_key
 from app.parse import assert_public_http_url
 
 load_dotenv(Path(__file__).resolve().parents[1] / ".env")
@@ -157,14 +158,41 @@ def site_summary(site_id: str, user: dict = Depends(require_user)) -> dict:
         if not crawl:
             return {"ok": True, "crawl": None, "pages": []}
         snaps = con.execute(
-            """SELECT url, status, title, h1, meta, canonical, score, issues, depth, ms, final_url, robots_meta, hops, redirect_status
+            """SELECT url, status, title, h1, meta, canonical, score, issues, depth, ms, final_url, robots_meta, hops, redirect_status,
+                      in_sitemap, via_link, via_sitemap, robots_header, fetched
                FROM snapshots WHERE crawl_id=? ORDER BY depth, url""",
             (crawl["id"],),
         ).fetchall()
+        pages = [dict(s) for s in snaps]
+        prev = con.execute(
+            """SELECT id, finished_at FROM crawls
+               WHERE site_id=? AND status='done' AND id!=? AND finished_at IS NOT NULL
+               ORDER BY started_at DESC LIMIT 1""",
+            (site_id, crawl["id"]),
+        ).fetchone()
+        diff = None
+        if prev:
+            prev_snaps = con.execute(
+                """SELECT url, status, title, issues, robots_meta, robots_header, fetched, hops, redirect_status, in_sitemap
+                   FROM snapshots WHERE crawl_id=?""",
+                (prev["id"],),
+            ).fetchall()
+            built = diff_rows(pages, [dict(p) for p in prev_snaps])
+            built["previous_at"] = prev["finished_at"]
+            flag_map = built["flags"]
+            for page in pages:
+                marks = flag_map.get(url_key(page.get("url") or ""), [])
+                if marks:
+                    page["diff"] = ",".join(marks)
+            for gone in built["removed"]:
+                gone["diff"] = "removed"
+            pages.extend(built["removed"])
+            diff = {"previous_at": built["previous_at"], "counts": built["counts"]}
         return {
             "ok": True,
             "crawl": dict(crawl),
-            "pages": [dict(s) for s in snaps],
+            "pages": pages,
+            "diff": diff,
         }
     finally:
         con.close()
