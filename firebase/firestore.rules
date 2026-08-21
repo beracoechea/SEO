@@ -1,55 +1,89 @@
 rules_version = '2';
+// Deployed only to the named database `webs` (see firebase.json).
+// Do not apply these rules to `(default)` — that DB belongs to the other app.
 service cloud.firestore {
   match /databases/{database}/documents {
     function signedIn() {
       return request.auth != null;
     }
 
-    function memberOf(orgId) {
+    function isPlatformAdmin() {
       return signedIn() &&
-        exists(/databases/$(database)/documents/orgs/$(orgId)/members/$(request.auth.uid));
+        exists(/databases/$(database)/documents/platformAdmins/$(request.auth.uid));
+    }
+
+    function memberSnap(orgId) {
+      return get(/databases/$(database)/documents/orgs/$(orgId)/members/$(request.auth.uid));
+    }
+
+    function isActiveMember(orgId) {
+      return signedIn() &&
+        exists(/databases/$(database)/documents/orgs/$(orgId)/members/$(request.auth.uid)) &&
+        (!('access' in memberSnap(orgId).data) || memberSnap(orgId).data.access == 'active');
     }
 
     function ownerOf(orgId) {
-      return memberOf(orgId) &&
-        get(/databases/$(database)/documents/orgs/$(orgId)/members/$(request.auth.uid)).data.role == 'owner';
+      return isActiveMember(orgId) && memberSnap(orgId).data.role == 'owner';
+    }
+
+    function orgNotSuspended(orgId) {
+      let d = get(/databases/$(database)/documents/orgs/$(orgId)).data;
+      return !('status' in d) || d.status == 'active';
+    }
+
+    function ownerOrgFieldsOnly() {
+      return request.resource.data.diff(resource.data).affectedKeys()
+        .hasOnly(['name', 'runtimeBaseUrl', 'defaultRateLimit']);
+    }
+
+    match /platformAdmins/{uid} {
+      allow read: if signedIn() && (request.auth.uid == uid || isPlatformAdmin());
+      allow write: if isPlatformAdmin();
     }
 
     match /users/{uid} {
-      allow read, write: if signedIn() && request.auth.uid == uid;
+      allow read: if signedIn() && (request.auth.uid == uid || isPlatformAdmin());
+      allow write: if signedIn() && request.auth.uid == uid;
 
       match /orgIndex/{orgId} {
-        allow read, write: if signedIn() && request.auth.uid == uid;
+        allow read: if signedIn() && (request.auth.uid == uid || isPlatformAdmin());
+        allow write: if signedIn() && (request.auth.uid == uid || isPlatformAdmin());
       }
     }
 
     match /orgs/{orgId} {
-      allow read: if memberOf(orgId);
+      allow read: if isActiveMember(orgId) || isPlatformAdmin();
       allow create: if signedIn() && request.resource.data.createdByUid == request.auth.uid;
-      allow update: if ownerOf(orgId);
-      allow delete: if ownerOf(orgId);
+      allow update: if isPlatformAdmin() || (ownerOf(orgId) && ownerOrgFieldsOnly());
+      allow delete: if ownerOf(orgId) || isPlatformAdmin();
 
       match /members/{uid} {
-        allow read: if memberOf(orgId);
-        allow create: if ownerOf(orgId)
+        allow read: if isActiveMember(orgId) || isPlatformAdmin();
+        allow create: if ownerOf(orgId) || isPlatformAdmin()
           || (signedIn() && request.auth.uid == uid);
-        allow update, delete: if ownerOf(orgId);
+        allow update, delete: if ownerOf(orgId) || isPlatformAdmin();
       }
 
       match /sites/{siteId} {
-        allow read, write: if memberOf(orgId);
+        allow read: if isActiveMember(orgId) || isPlatformAdmin();
+        allow write: if isPlatformAdmin()
+          || (isActiveMember(orgId) && orgNotSuspended(orgId));
       }
 
       match /invites/{inviteId} {
-        allow read: if memberOf(orgId)
+        allow read: if isActiveMember(orgId) || isPlatformAdmin()
           || (signedIn() && resource.data.email == request.auth.token.email);
-        allow create, update, delete: if ownerOf(orgId) || memberOf(orgId);
+        allow create, update, delete: if ownerOf(orgId) || isActiveMember(orgId) || isPlatformAdmin();
       }
     }
+
     match /inviteIndex/{id} {
       allow read: if signedIn() &&
         resource.data.email == request.auth.token.email;
-      allow create: if signedIn() && memberOf(request.resource.data.orgId);
+      allow create: if signedIn() && (
+        isPlatformAdmin() ||
+        isActiveMember(request.resource.data.orgId)
+      );
       allow update: if signedIn() &&
         resource.data.email == request.auth.token.email;
     }

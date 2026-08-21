@@ -1,0 +1,34 @@
+# Runtime del cliente (LAN). Usar desde la raíz del repo:
+#   docker compose -f deploy/cliente/docker-compose.yml --env-file deploy/cliente/.env up -d --build
+#
+# Guía completa: docs/INSTALACION.md
+
+services:
+  runtime:
+    build: ../../apps/runtime
+    image: seo-runtime:${RUNTIME_VERSION:-0.1.0}
+    restart: unless-stopped
+    ports:
+      - "${RUNTIME_PORT:-8080}:8080"
+    environment:
+      ORG_ID: ${ORG_ID}
+      FIREBASE_PROJECT_ID: ${FIREBASE_PROJECT_ID}
+      CORS_ORIGIN: ${CORS_ORIGIN}
+      DATA_DIR: /app/data
+    volumes:
+      - runtime-data:/app/data
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/api/health')",
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+volumes:
+  runtime-data:

@@ -1,6 +1,8 @@
+import { Building2, Plus, UserPlus } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
+import { IconBtn } from "../components/IconBtn";
 import { useAuth } from "../context/AuthContext";
 import {
   createOrg,
@@ -61,14 +63,14 @@ export function OnboardingPage() {
           {t("onboarding.orgName")}
           <input value={name} onChange={(e) => setName(e.target.value)} maxLength={80} />
         </label>
-        <button
-          type="button"
-          className="btn btn-primary"
+        <IconBtn
+          label={t("onboarding.create")}
+          tone="accent"
+          showLabel
           disabled={busy || name.trim().length < 2}
           onClick={() => void onCreate()}
-        >
-          {t("onboarding.create")}
-        </button>
+          icon={<Plus size={18} />}
+        />
       </div>
       <div className="card stack">
         <h2 style={{ margin: 0, fontSize: 16 }}>{t("onboarding.invites")}</h2>
@@ -80,9 +82,14 @@ export function OnboardingPage() {
               <span>
                 {inv.orgName} · {inv.role}
               </span>
-              <button type="button" className="btn btn-primary" disabled={busy} onClick={() => void onJoin(inv)}>
-                {t("onboarding.join")}
-              </button>
+              <IconBtn
+                label={t("onboarding.join")}
+                tone="accent"
+                showLabel
+                disabled={busy}
+                onClick={() => void onJoin(inv)}
+                icon={<UserPlus size={18} />}
+              />
             </div>
           ))
         )}
@@ -93,7 +100,7 @@ export function OnboardingPage() {
 
 export function OrgsPage() {
   const { t } = useTranslation();
-  const { user } = useAuth();
+  const { user, platformAdmin } = useAuth();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
 
@@ -101,12 +108,14 @@ export function OrgsPage() {
     if (!user) return;
     void listMyOrgs(user.uid)
       .then((orgs) => {
-        if (orgs.length === 0) navigate("/onboarding", { replace: true });
-        else if (orgs.length === 1) navigate(`/o/${orgs[0].id}`, { replace: true });
+        if (orgs.length === 0) {
+          if (platformAdmin) navigate("/admin", { replace: true });
+          else navigate("/onboarding", { replace: true });
+        } else if (orgs.length === 1 && !platformAdmin) navigate(`/o/${orgs[0].id}`, { replace: true });
         else setLoading(false);
       })
       .catch(() => setLoading(false));
-  }, [user, navigate]);
+  }, [user, navigate, platformAdmin]);
 
   const [orgs, setOrgs] = useState<Awaited<ReturnType<typeof listMyOrgs>>>([]);
 
@@ -125,7 +134,12 @@ export function OrgsPage() {
 
   return (
     <div className="page stack">
-      <h1>{t("orgs.title")}</h1>
+      <div className="row" style={{ justifyContent: "space-between" }}>
+        <h1 style={{ margin: 0 }}>{t("orgs.title")}</h1>
+        {platformAdmin ? (
+          <IconBtn label={t("nav.admin")} tone="sky" showLabel onClick={() => navigate("/admin")} icon={<Building2 size={18} />} />
+        ) : null}
+      </div>
       {orgs.length === 0 ? <p className="muted">{t("orgs.empty")}</p> : null}
       {orgs.map((o) => (
         <button key={o.id} type="button" className="card" style={{ cursor: "pointer", textAlign: "left" }} onClick={() => navigate(`/o/${o.id}`)}>

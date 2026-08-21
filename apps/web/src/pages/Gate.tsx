@@ -8,7 +8,8 @@ export function Gate({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
   if (loading) {
     return (
-      <div className="page">
+      <div className="page stack" style={{ alignItems: "center", paddingTop: 80 }}>
+        <div className="spinner" aria-hidden="true" />
         <p className="muted">{t("common.loading")}</p>
       </div>
     );

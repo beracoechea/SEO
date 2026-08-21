@@ -14,6 +14,12 @@ import {
 import { getDb } from "./firebase";
 
 export type Role = "owner" | "member";
+export type OrgStatus = "active" | "suspended";
+export type MemberAccess = "active" | "revoked";
+
+export const DEFAULT_MAX_SITES = 5;
+export const DEFAULT_MAX_PAGES_PER_SITE = 20000;
+export const DEFAULT_MAX_MEMBERS = 10;
 
 export type Org = {
   id: string;
@@ -21,6 +27,10 @@ export type Org = {
   createdByUid: string;
   runtimeBaseUrl: string | null;
   defaultRateLimit: number;
+  status: OrgStatus;
+  maxSites: number;
+  maxPagesPerSite: number;
+  maxMembers: number;
 };
 
 export type Site = {
@@ -39,6 +49,7 @@ export type Member = {
   uid: string;
   email: string;
   role: Role;
+  access: MemberAccess;
 };
 
 export type Invite = {
@@ -49,8 +60,35 @@ export type Invite = {
   orgName: string;
 };
 
+export type PlatformUser = {
+  uid: string;
+  email: string;
+  displayName: string;
+  orgIds: { id: string; name: string; role: Role }[];
+};
+
 function db() {
   return getDb();
+}
+
+function orgFromData(id: string, d: Record<string, unknown>): Org {
+  const status = d.status === "suspended" ? "suspended" : "active";
+  return {
+    id,
+    name: (d.name as string) ?? "",
+    createdByUid: (d.createdByUid as string) ?? "",
+    runtimeBaseUrl: (d.runtimeBaseUrl as string | null) ?? null,
+    defaultRateLimit: (d.defaultRateLimit as number) ?? 4,
+    status,
+    maxSites: (d.maxSites as number) ?? DEFAULT_MAX_SITES,
+    maxPagesPerSite: (d.maxPagesPerSite as number) ?? DEFAULT_MAX_PAGES_PER_SITE,
+    maxMembers: (d.maxMembers as number) ?? DEFAULT_MAX_MEMBERS,
+  };
+}
+
+export async function isPlatformAdminUid(uid: string): Promise<boolean> {
+  const snap = await getDoc(doc(db(), "platformAdmins", uid));
+  return snap.exists();
 }
 
 export async function upsertUserProfile(uid: string, data: {
@@ -61,7 +99,7 @@ export async function upsertUserProfile(uid: string, data: {
 }) {
   await setDoc(
     doc(db(), "users", uid),
-    { ...data, updatedAt: serverTimestamp() },
+    { ...data, email: data.email.trim().toLowerCase(), updatedAt: serverTimestamp() },
     { merge: true },
   );
 }
@@ -76,14 +114,7 @@ export async function listMyOrgs(uid: string): Promise<Org[]> {
   for (const row of snap.docs) {
     const orgSnap = await getDoc(doc(db(), "orgs", row.id));
     if (orgSnap.exists()) {
-      const d = orgSnap.data();
-      orgs.push({
-        id: orgSnap.id,
-        name: d.name as string,
-        createdByUid: d.createdByUid as string,
-        runtimeBaseUrl: (d.runtimeBaseUrl as string | null) ?? null,
-        defaultRateLimit: (d.defaultRateLimit as number) ?? 4,
-      });
+      orgs.push(orgFromData(orgSnap.id, orgSnap.data() as Record<string, unknown>));
     }
   }
   return orgs;
@@ -91,21 +122,27 @@ export async function listMyOrgs(uid: string): Promise<Org[]> {
 
 export async function createOrg(uid: string, email: string, name: string): Promise<string> {
   const orgRef = doc(collection(db(), "orgs"));
+  const trimmed = name.trim();
   await setDoc(orgRef, {
-    name: name.trim(),
+    name: trimmed,
     createdByUid: uid,
     runtimeBaseUrl: null,
     defaultRateLimit: 4,
+    status: "active",
+    maxSites: DEFAULT_MAX_SITES,
+    maxPagesPerSite: DEFAULT_MAX_PAGES_PER_SITE,
+    maxMembers: DEFAULT_MAX_MEMBERS,
     createdAt: serverTimestamp(),
   });
   await setDoc(doc(db(), "orgs", orgRef.id, "members", uid), {
     role: "owner",
-    email,
+    email: email.trim().toLowerCase(),
+    access: "active",
     joinedAt: serverTimestamp(),
   });
   await setDoc(doc(db(), "users", uid, "orgIndex", orgRef.id), {
     role: "owner",
-    name: name.trim(),
+    name: trimmed,
   });
   return orgRef.id;
 }
@@ -113,14 +150,7 @@ export async function createOrg(uid: string, email: string, name: string): Promi
 export async function getOrg(orgId: string): Promise<Org | null> {
   const snap = await getDoc(doc(db(), "orgs", orgId));
   if (!snap.exists()) return null;
-  const d = snap.data();
-  return {
-    id: snap.id,
-    name: d.name as string,
-    createdByUid: d.createdByUid as string,
-    runtimeBaseUrl: (d.runtimeBaseUrl as string | null) ?? null,
-    defaultRateLimit: (d.defaultRateLimit as number) ?? 4,
-  };
+  return orgFromData(snap.id, snap.data() as Record<string, unknown>);
 }
 
 export async function updateOrg(
@@ -130,22 +160,41 @@ export async function updateOrg(
   await updateDoc(doc(db(), "orgs", orgId), patch);
 }
 
+export async function updateOrgEntitlements(
+  orgId: string,
+  patch: {
+    status?: OrgStatus;
+    maxSites?: number;
+    maxPagesPerSite?: number;
+    maxMembers?: number;
+  },
+) {
+  await updateDoc(doc(db(), "orgs", orgId), patch);
+}
+
+function siteFromData(id: string, d: Record<string, unknown>): Site {
+  return {
+    id,
+    name: (d.name as string) ?? "",
+    origin: (d.origin as string) ?? "",
+    active: Boolean(d.active ?? true),
+    maxPages: (d.maxPages as number) ?? 20000,
+    maxDepth: (d.maxDepth as number) ?? 8,
+    includePatterns: (d.includePatterns as string[]) ?? [],
+    excludePatterns: (d.excludePatterns as string[]) ?? [],
+    templateUrls: (d.templateUrls as string[]) ?? [],
+  };
+}
+
 export async function listSites(orgId: string): Promise<Site[]> {
   const snap = await getDocs(collection(db(), "orgs", orgId, "sites"));
-  return snap.docs.map((s) => {
-    const d = s.data();
-    return {
-      id: s.id,
-      name: d.name as string,
-      origin: d.origin as string,
-      active: Boolean(d.active ?? true),
-      maxPages: (d.maxPages as number) ?? 20000,
-      maxDepth: (d.maxDepth as number) ?? 8,
-      includePatterns: (d.includePatterns as string[]) ?? [],
-      excludePatterns: (d.excludePatterns as string[]) ?? [],
-      templateUrls: (d.templateUrls as string[]) ?? [],
-    };
-  });
+  return snap.docs.map((s) => siteFromData(s.id, s.data() as Record<string, unknown>));
+}
+
+export async function getSite(orgId: string, siteId: string): Promise<Site | null> {
+  const snap = await getDoc(doc(db(), "orgs", orgId, "sites", siteId));
+  if (!snap.exists()) return null;
+  return siteFromData(snap.id, snap.data() as Record<string, unknown>);
 }
 
 export async function createSite(
@@ -159,21 +208,41 @@ export async function createSite(
     templateUrls: string[];
   },
 ) {
+  const org = await getOrg(orgId);
+  if (!org) throw new Error("org-missing");
+  if (org.status === "suspended") throw new Error("org-suspended");
+  const sites = await listSites(orgId);
+  if (sites.length >= org.maxSites) throw new Error("sites-quota");
+  const maxPages = Math.min(input.maxPages, org.maxPagesPerSite);
   await addDoc(collection(db(), "orgs", orgId, "sites"), {
     ...input,
+    maxPages,
     active: true,
     includePatterns: [],
     createdAt: serverTimestamp(),
   });
 }
 
-export async function listMembers(orgId: string): Promise<Member[]> {
+export async function updateSiteMaxPages(orgId: string, siteId: string, maxPages: number) {
+  const org = await getOrg(orgId);
+  if (!org) throw new Error("org-missing");
+  const capped = Math.max(1, Math.min(maxPages, org.maxPagesPerSite));
+  await updateDoc(doc(db(), "orgs", orgId, "sites", siteId), { maxPages: capped });
+}
+
+export async function listMembers(
+  orgId: string,
+  opts?: { includeRevoked?: boolean },
+): Promise<Member[]> {
   const snap = await getDocs(collection(db(), "orgs", orgId, "members"));
-  return snap.docs.map((s) => ({
+  const rows = snap.docs.map((s) => ({
     uid: s.id,
     email: s.data().email as string,
     role: s.data().role as Role,
+    access: (s.data().access as MemberAccess) || "active",
   }));
+  if (opts?.includeRevoked) return rows;
+  return rows.filter((m) => m.access === "active");
 }
 
 export async function createInvite(orgId: string, email: string, role: Role, createdByUid: string) {
@@ -185,6 +254,22 @@ export async function createInvite(orgId: string, email: string, role: Role, cre
     consumedAt: null,
     orgName: (await getOrg(orgId))?.name ?? "",
   });
+}
+
+export async function listOrgInvites(orgId: string): Promise<Invite[]> {
+  const snap = await getDocs(collection(db(), "orgs", orgId, "invites"));
+  return snap.docs
+    .filter((s) => !s.data().consumedAt)
+    .map((s) => {
+      const d = s.data();
+      return {
+        id: s.id,
+        email: d.email as string,
+        role: d.role as Role,
+        orgId,
+        orgName: (d.orgName as string) || orgId,
+      };
+    });
 }
 
 export async function listOpenInvitesForEmail(email: string, orgIds: string[]): Promise<Invite[]> {
@@ -251,7 +336,8 @@ export async function addInviteIndex(invite: {
 export async function joinOrg(uid: string, email: string, invite: Invite) {
   await setDoc(doc(db(), "orgs", invite.orgId, "members", uid), {
     role: invite.role,
-    email,
+    email: email.trim().toLowerCase(),
+    access: "active",
     joinedAt: serverTimestamp(),
   });
   await setDoc(doc(db(), "users", uid, "orgIndex", invite.orgId), {
@@ -266,26 +352,106 @@ export async function removeMember(orgId: string, uid: string) {
   await deleteDoc(doc(db(), "users", uid, "orgIndex", orgId));
 }
 
-export function isPrivateOrigin(origin: string): boolean {
-  try {
-    const u = new URL(origin);
-    const host = u.hostname.toLowerCase();
-    if (host === "localhost" || host.endsWith(".local")) return true;
-    if (host === "127.0.0.1" || host === "::1") return true;
-    const m = host.match(/^(\d+)\.(\d+)\.(\d+)\.(\d+)$/);
-    if (m) {
-      const a = Number(m[1]);
-      const b = Number(m[2]);
-      if (a === 10) return true;
-      if (a === 127) return true;
-      if (a === 192 && b === 168) return true;
-      if (a === 172 && b >= 16 && b <= 31) return true;
-    }
-    return false;
-  } catch {
-    return true;
-  }
+export async function revokeOrgAccess(orgId: string, uid: string) {
+  await updateDoc(doc(db(), "orgs", orgId, "members", uid), {
+    access: "revoked",
+    revokedAt: serverTimestamp(),
+  });
+  await deleteDoc(doc(db(), "users", uid, "orgIndex", orgId));
 }
+
+export async function restoreOrgAccess(orgId: string, uid: string, role: Role, orgName: string) {
+  await updateDoc(doc(db(), "orgs", orgId, "members", uid), {
+    access: "active",
+    role,
+    revokedAt: null,
+  });
+  await setDoc(doc(db(), "users", uid, "orgIndex", orgId), {
+    role,
+    name: orgName,
+  });
+}
+
+export async function findUserByEmail(email: string): Promise<{ uid: string; email: string; displayName: string } | null> {
+  const needle = email.trim().toLowerCase();
+  const q = query(collection(db(), "users"), where("email", "==", needle));
+  const snap = await getDocs(q);
+  const row = snap.docs[0];
+  if (!row) return null;
+  const d = row.data();
+  return {
+    uid: row.id,
+    email: (d.email as string) ?? needle,
+    displayName: (d.displayName as string) ?? "",
+  };
+}
+
+export async function grantOrgAccess(input: {
+  orgId: string;
+  orgName: string;
+  email: string;
+  role: Role;
+  grantedByUid: string;
+}): Promise<"member" | "invite"> {
+  const email = input.email.trim().toLowerCase();
+  const existing = await findUserByEmail(email);
+  if (existing) {
+    const memberRef = doc(db(), "orgs", input.orgId, "members", existing.uid);
+    const prev = await getDoc(memberRef);
+    await setDoc(
+      memberRef,
+      {
+        role: input.role,
+        email,
+        access: "active",
+        grantedByUid: input.grantedByUid,
+        joinedAt: prev.exists() ? (prev.data()?.joinedAt ?? serverTimestamp()) : serverTimestamp(),
+        revokedAt: null,
+      },
+      { merge: true },
+    );
+    await setDoc(doc(db(), "users", existing.uid, "orgIndex", input.orgId), {
+      role: input.role,
+      name: input.orgName,
+    });
+    return "member";
+  }
+  await createInvite(input.orgId, email, input.role, input.grantedByUid);
+  await addInviteIndex({
+    orgId: input.orgId,
+    orgName: input.orgName,
+    email,
+    role: input.role,
+  });
+  return "invite";
+}
+
+export async function listAllOrgs(): Promise<Org[]> {
+  const snap = await getDocs(collection(db(), "orgs"));
+  return snap.docs.map((s) => orgFromData(s.id, s.data() as Record<string, unknown>));
+}
+
+export async function listAllUsers(): Promise<PlatformUser[]> {
+  const snap = await getDocs(collection(db(), "users"));
+  const out: PlatformUser[] = [];
+  for (const row of snap.docs) {
+    const d = row.data();
+    const idx = await getDocs(collection(db(), "users", row.id, "orgIndex"));
+    out.push({
+      uid: row.id,
+      email: (d.email as string) ?? "",
+      displayName: (d.displayName as string) ?? "",
+      orgIds: idx.docs.map((o) => ({
+        id: o.id,
+        name: (o.data().name as string) || o.id,
+        role: (o.data().role as Role) || "member",
+      })),
+    });
+  }
+  return out.sort((a, b) => a.email.localeCompare(b.email));
+}
+
+export { isPrivateOrigin } from "./origin";
 
 export async function pingRuntime(baseUrl: string): Promise<boolean> {
   const url = `${baseUrl.replace(/\/$/, "")}/api/health`;

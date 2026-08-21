@@ -13,13 +13,15 @@ import {
   type User,
 } from "firebase/auth";
 import { firebaseConfigured, getFirebaseAuth, googleProvider } from "../lib/firebase";
-import { upsertUserProfile } from "../lib/db";
+import { isPlatformAdminUid, upsertUserProfile } from "../lib/db";
 import i18n from "../i18n";
 
 type AuthCtx = {
   user: User | null;
   loading: boolean;
   configured: boolean;
+  platformAdmin: boolean;
+  adminCheckError: boolean;
   signInGoogle: () => Promise<void>;
   logout: () => Promise<void>;
 };
@@ -29,6 +31,8 @@ const Ctx = createContext<AuthCtx | null>(null);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const [platformAdmin, setPlatformAdmin] = useState(false);
+  const [adminCheckError, setAdminCheckError] = useState(false);
   const configured = firebaseConfigured();
 
   useEffect(() => {
@@ -51,6 +55,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         } catch {
           /* profile write is best-effort */
         }
+        try {
+          setPlatformAdmin(await isPlatformAdminUid(next.uid));
+          setAdminCheckError(false);
+        } catch {
+          setPlatformAdmin(false);
+          setAdminCheckError(true);
+        }
+      } else {
+        setPlatformAdmin(false);
+        setAdminCheckError(false);
       }
       setLoading(false);
     });
@@ -61,6 +75,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       user,
       loading,
       configured,
+      platformAdmin,
+      adminCheckError,
       signInGoogle: async () => {
         await signInWithPopup(getFirebaseAuth(), googleProvider);
       },
@@ -68,7 +84,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         await signOut(getFirebaseAuth());
       },
     }),
-    [user, loading, configured],
+    [user, loading, configured, platformAdmin, adminCheckError],
   );
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

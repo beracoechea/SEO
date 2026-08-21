@@ -1,0 +1,12 @@
+#!/bin/sh
+# Bloquea el push si el verificador falla.
+root="$(git rev-parse --show-toplevel)"
+echo "pre-push: corriendo scripts/verify (sin E2E)..."
+
+if command -v pwsh >/dev/null 2>&1; then
+  pwsh -NoProfile -File "$root/scripts/verify.ps1"
+elif command -v powershell >/dev/null 2>&1; then
+  powershell -NoProfile -File "$root/scripts/verify.ps1"
+else
+  sh "$root/scripts/verify.sh"
+fi

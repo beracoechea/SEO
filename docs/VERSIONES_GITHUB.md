@@ -13,7 +13,7 @@ Hay **dos artefactos**, no uno:
 
 | Artefacto | Dónde corre en producción | Qué contiene |
 |-----------|---------------------------|--------------|
-| Cáscara web (`apps/web`) | Firebase Hosting (HTTPS) | Login Google, orgs, equipo, links de sitios |
+| Cáscara web (`apps/web`) | Firebase Hosting (HTTPS) | Login Google, orgs, equipo, links de sitios, consola `/admin` |
 | Runtime (`apps/runtime`) | Servidor / PC de cada empresa (LAN) | Crawler, SQLite, historial |
 
 - Publicar la web **no** despliega el crawler en las oficinas.
@@ -85,8 +85,8 @@ Se escribe **antes** del tag, en el mismo commit de bump de versión.
 2. git pull origin main
 3. git checkout -b feat/mi-cambio
 4. Trabajar, commits pequeños en español o inglés, pero consistentes.
-5. git push -u origin feat/mi-cambio
-6. Abrir Pull Request a main en GitHub (revisión).
+5. git push -u origin feat/mi-cambio   # el hook pre-push corre el tester si lo instalaste
+6. Abrir Pull Request a main en GitHub. **No merges si Actions está rojo.**
 7. Merge a main.
 8. Borrar la rama remota.
 ```
@@ -106,7 +106,7 @@ No se sube `.env`, claves de servicio Firebase, ni SQLite con datos de clientes.
 
 ## 6. Cómo se hace un release (GitHub)
 
-En `main`, limpio y testeado:
+En `main`, limpio, **Actions verde** y `.\scripts\verify.ps1` en local:
 
 ```bash
 # 1. Actualizar versión en package.json y app/__init__.py
@@ -164,12 +164,13 @@ Comprobar:
 
 1. `https://<dominio-prod>` abre login.
 2. Google Sign-In funciona (Authorized domain en Firebase Auth).
-3. Firestore rules desplegadas: `firebase deploy --only firestore:rules`
+3. Firestore rules de la BD **`webs`**: `firebase deploy --only firestore:rules,firestore:indexes`  
+   (no despliega `(default)`; esa BD es de la otra app).
 
 Si la cáscara y las rules van juntas:
 
 ```bash
-firebase deploy --only hosting,firestore:rules
+firebase deploy --only hosting,firestore:rules,firestore:indexes
 ```
 
 **Preview (opcional, no es prod):**
@@ -218,11 +219,13 @@ Nunca apuntes el `.env.local` de desarrollo al proyecto `prod` para “probar un
 
 ## 10. Checklist antes de tocar producción
 
-- [ ] `main` actualizado y verde (build `apps/web` OK).
+- [ ] `main` actualizado y **Actions verde** (workflow `Verificar antes de publicar`).
+- [ ] `.\scripts\verify.ps1` pasó en local.
 - [ ] CHANGELOG actualizado.
 - [ ] Tag `vX.Y.Z` empujado.
 - [ ] `firebase use prod` confirmado (no `dev`).
-- [ ] Rules de Firestore revisadas (nadie lee orgs ajenas).
+- [ ] Rules de Firestore revisadas (nadie lee orgs ajenas, salvo `platformAdmins`) y desplegadas a la BD **`webs`**, no a `(default)`.
+- [ ] El primer operador existe en `platformAdmins/{uid}`.
 - [ ] Runtime: `ORG_ID` del cliente no cambió por error.
 - [ ] Aviso a Marketing/IT si hay migración o downtime.
 

@@ -1,6 +1,8 @@
+import { Save, X } from "lucide-react";
 import { useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
+import { IconBtn } from "../components/IconBtn";
 import { createSite, isPrivateOrigin } from "../lib/db";
 
 function lines(text: string): string[] {
@@ -46,8 +48,11 @@ export function NewSitePage() {
         templateUrls,
       });
       navigate(`/o/${orgId}`);
-    } catch {
-      setError(t("errors.generic"));
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "";
+      if (msg === "sites-quota") setError(t("sites.quotaReached"));
+      else if (msg === "org-suspended") setError(t("org.suspended"));
+      else setError(t("errors.generic"));
     } finally {
       setBusy(false);
     }
@@ -83,17 +88,15 @@ export function NewSitePage() {
           <textarea rows={4} value={templates} onChange={(e) => setTemplates(e.target.value)} />
         </label>
         <div className="row">
-          <button type="button" className="btn" onClick={() => navigate(-1)}>
-            {t("common.cancel")}
-          </button>
-          <button
-            type="button"
-            className="btn btn-primary"
+          <IconBtn label={t("common.cancel")} onClick={() => navigate(-1)} icon={<X size={18} />} />
+          <IconBtn
+            label={t("sites.save")}
+            tone="accent"
+            showLabel
             disabled={busy || name.trim().length < 2}
             onClick={() => void onSave()}
-          >
-            {t("sites.save")}
-          </button>
+            icon={<Save size={18} />}
+          />
         </div>
       </div>
     </div>

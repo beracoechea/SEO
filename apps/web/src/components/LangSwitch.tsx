@@ -1,3 +1,4 @@
+import { Globe } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { saveLocale } from "../lib/db";
 import { useAuth } from "../context/AuthContext";
@@ -14,22 +15,13 @@ export function LangSwitch() {
   }
 
   return (
-    <div className="lang-switch">
-      <button
-        type="button"
-        className="btn"
-        aria-pressed={current === "es"}
-        onClick={() => setLang("es")}
-      >
-        {t("lang.es")}
+    <div className="lang-switch" role="group" aria-label={t("lang.es")}>
+      <Globe size={16} aria-hidden />
+      <button type="button" className="lang-chip" aria-label={t("lang.es")} aria-pressed={current === "es"} onClick={() => setLang("es")}>
+        ES
       </button>
-      <button
-        type="button"
-        className="btn"
-        aria-pressed={current === "en"}
-        onClick={() => setLang("en")}
-      >
-        {t("lang.en")}
+      <button type="button" className="lang-chip" aria-label={t("lang.en")} aria-pressed={current === "en"} onClick={() => setLang("en")}>
+        EN
       </button>
     </div>
   );

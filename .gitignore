@@ -12,6 +12,9 @@ __pycache__/
 .DS_Store
 Thumbs.db
 *.log
-apps/runtime/data/
+apps/runtime/data/*
 !apps/runtime/data/.gitkeep
 .python-version
+playwright-report/
+test-results/
+blob-report/
