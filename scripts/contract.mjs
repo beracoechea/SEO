@@ -46,7 +46,12 @@ ok("rules: isPlatformAdmin", rules.includes("function isPlatformAdmin"));
 ok("rules: platformAdmins", rules.includes("match /platformAdmins/{uid}"));
 ok("rules: members.access", rules.includes("access"));
 ok("firestore.json usa BD webs", json("firebase.json").firestore?.database === "webs");
-ok("cliente getFirestore named DB", read("apps/web/src/lib/firebase.ts").includes("getFirestore(app, FIRESTORE_DATABASE_ID)"));
+const firebase = read("apps/web/src/lib/firebase.ts");
+ok(
+  "cliente Firestore named DB",
+  firebase.includes("FIRESTORE_DATABASE_ID") &&
+    (firebase.includes("initializeFirestore") || firebase.includes("getFirestore")),
+);
 
 const compose = read("docker-compose.yml");
 ok("compose publica 8080", compose.includes("8080:8080"));

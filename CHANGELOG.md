@@ -34,6 +34,11 @@ El versionado sigue [SemVer](https://semver.org/lang/es/).
 - El crawler reintenta 5xx transitorios y timeouts; un fallo de red ya no cuenta como 500. User-Agent más cercano a un navegador.
 - Nodos de tendencia: 5 por sitio, con score al pasar el cursor.
 - Firestore (`webs`) fuerza long polling para evitar 400 en el canal Listen.
+- GitHub Actions: `checkout@v5`, `setup-node@v5` y `setup-python@v6` (runtime Node 24; Node 20 está deprecado en los runners).
+
+### Fixed
+
+- El contrato de `verify` acepta `initializeFirestore` en la BD named `webs` (antes exigía `getFirestore` y fallaba el CI).
 
 ### Removed
 
