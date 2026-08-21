@@ -63,7 +63,8 @@ export function pageHadRedirect(page: PageSnap): boolean {
 export function pageHttpClass(page: PageSnap): PageHttpClass {
   if (!pageFetched(page) || diffFlags(page).includes("removed")) return "skip";
   const status = page.status || 0;
-  if (status === 0 || status >= 500) return "server";
+  if (status === 0) return "skip";
+  if (status >= 500) return "server";
   if (status >= 400) return "client";
   if ((status >= 300 && status < 400) || pageHadRedirect(page)) return "redirect";
   return "ok";

@@ -9,7 +9,7 @@ Hay **dos piezas**. No se instalan igual:
 | Cáscara web (`apps/web`) | Logicbus (nosotros) | HTTPS (local o Firebase Hosting) | Login Google, orgs, sitios, equipo, **administración** |
 | Runtime (`apps/runtime`) | Cada cliente, en su red | Docker en un PC/servidor de planta | Crawler, historial SQLite. **Los crawls no salen de su LAN** |
 
-El cliente **no** publica la web. El cliente **sí** levanta el runtime con Docker y pega la URL (`http://IP:8080`) en Ajustes de su organización.
+El cliente **no** publica la web. El cliente **sí** levanta el runtime con Docker en su LAN. En desarrollo la cáscara arranca el motor sola; no hay pantalla de Ajustes.
 
 Repositorio: https://github.com/beracoechea/SEO
 
@@ -178,7 +178,7 @@ docker compose -f deploy\cliente\docker-compose.yml --env-file deploy\cliente\.e
 
 7. Firewall de Windows: permitir TCP 8080 **solo en red privada**, no en perfiles públicos ni en el router hacia WAN.
 
-8. En la cáscara (cualquier navegador, ya logueado): **Ajustes** → pegar `http://192.168.x.x:8080` → **Probar conexión**. Si estás fuera de la oficina, fallará (es el diseño: sin VPN/LAN no hay historial).
+8. En la oficina, la cáscara debe alcanzar ese `http://192.168.x.x:8080` (misma LAN o VPN). En desarrollo local Vite arranca el motor y no hay que pegar ninguna URL. Si estás fuera de la red del cliente, el historial no estará (es el diseño).
 
 ### 2.3 Actualizar el runtime del cliente
 

@@ -28,8 +28,12 @@ from app.parse import (
 )
 from app.score import classify_issues, score_url, site_score
 
-UA = "TechnicalSEOMonitor/0.1 (+https://logicbus.com; crawl)"
+UA = (
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) "
+    "Chrome/128.0.0.0 Safari/537.36 TechnicalSEOMonitor/0.1"
+)
 SAFETY_CAP = 50000
+TRANSIENT_HTTP = {0, 429, 500, 502, 503, 504, 520, 521, 522, 523, 524}
 
 
 def make_client(**kwargs) -> httpx.AsyncClient:
@@ -77,7 +81,24 @@ class Fetch:
         self.robots_tag = robots_tag
 
 
-async def _get(client: httpx.AsyncClient, url: str) -> Fetch:
+def _max_retries(status: int) -> int:
+    if status == 500:
+        return 1
+    if status in TRANSIENT_HTTP:
+        return 2
+    return 0
+
+
+def _body_text(res: httpx.Response, content_type: str) -> str:
+    if not _is_htmlish(content_type):
+        return ""
+    try:
+        return res.text
+    except Exception:
+        return res.content.decode("utf-8", "replace")
+
+
+async def _get_once(client: httpx.AsyncClient, url: str) -> Fetch:
     assert_public_http_url(url)
     hops = 0
     current = url
@@ -95,7 +116,7 @@ async def _get(client: httpx.AsyncClient, url: str) -> Fetch:
             ms = int((time.perf_counter() - t0) * 1000)
             return Fetch(0, "", hops, current, ms, "", b"", first_3xx)
         ct = res.headers.get("content-type", "")
-        text = res.text if _is_htmlish(ct) else ""
+        text = _body_text(res, ct)
         tag = res.headers.get("x-robots-tag") or ""
         last = Fetch(res.status_code, text, hops, current, 0, ct, res.content, first_3xx, tag)
         if res.is_redirect:
@@ -112,8 +133,6 @@ async def _get(client: httpx.AsyncClient, url: str) -> Fetch:
             last.final = current
             last.redirect_status = first_3xx
             continue
-        if not last.text:
-            last.text = res.text
         last.final = str(res.url) if res.url else current
         last.redirect_status = first_3xx
         break
@@ -123,8 +142,21 @@ async def _get(client: httpx.AsyncClient, url: str) -> Fetch:
     return last
 
 
-def _bucket(status: int, hops: int = 0) -> str:
-    if status >= 500 or status == 0:
+async def _get(client: httpx.AsyncClient, url: str) -> Fetch:
+    last = await _get_once(client, url)
+    attempt = 0
+    while attempt < _max_retries(last.status):
+        attempt += 1
+        if os.getenv("CRAWL_NO_DELAY") != "1":
+            await asyncio.sleep(0.4 * attempt)
+        last = await _get_once(client, url)
+    return last
+
+
+def _bucket(status: int, hops: int = 0) -> str | None:
+    if status == 0:
+        return None
+    if status >= 500:
         return "5xx"
     if status >= 400:
         return "4xx"
@@ -190,7 +222,9 @@ def _record_page(
     )
     level = classify_issues(issues)
     counts[level] = counts.get(level, 0) + 1
-    buckets[_bucket(fetch.status, fetch.hops)] += 1
+    bucket = _bucket(fetch.status, fetch.hops)
+    if bucket:
+        buckets[bucket] += 1
     snaps.append((sc, depth))
     if expect_html and title:
         titles.append(title.strip().lower())
@@ -390,11 +424,12 @@ async def run_crawl(
 
     headers = {
         "User-Agent": UA,
-        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+        "Accept-Language": "es-MX,es;q=0.9,en-US;q=0.8,en;q=0.7",
     }
 
     try:
-        async with make_client(headers=headers, timeout=12.0) as client:
+        async with make_client(headers=headers, timeout=httpx.Timeout(20.0, connect=8.0)) as client:
             queue: deque[tuple[str, int]] = deque()
             seen: set[str] = set()
             sitemap_set: set[str] = set()

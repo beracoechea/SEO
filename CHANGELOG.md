@@ -16,7 +16,7 @@ El versionado sigue [SemVer](https://semver.org/lang/es/).
 - Exportar informe Excel (resumen, gráficos HTTP/hallazgos y listado de URLs con saltos, destino, status y hallazgos).
 - Mapa de indexación: `X-Robots-Tag` + meta robots, sitemap vs crawl, huérfanas, sitemap en 404, sitemap bloqueado por robots.txt, noindex en el XML, URLs fuera del sitemap.
 - Diff entre escaneos: 404 nuevos/recuperados, noindex nuevo, titles cambiados, URLs añadidas o que ya no se piden.
-- Cáscara web: login Google, i18n es/en, orgs, sitios, equipo, ajustes de runtime.
+- Cáscara web: login Google, i18n es/en, orgs, sitios, equipo.
 - Consola web de administración (`/admin`): todas las orgs, usuarios, cupos de sitios/páginas, conceder o restringir accesos.
 - Este monitor usa Firestore **named database `webs`** en el proyecto Blaze compartido. Auth es el mismo; `(default)` no se toca.
 - Paleta de producto (fondo `#f8fafc`/`#fff`, primario `#0f172a`/`#1E3a8a`, acentos esmeralda/cielo, estados ámbar y carmesí) y anillos/barras de auditoría.
@@ -28,6 +28,18 @@ El versionado sigue [SemVer](https://semver.org/lang/es/).
 
 - Las etiquetas HTTP en la UI hablan en claro (páginas OK, redirecciones, página no encontrada, error del servidor) en lugar de solo 200/3xx/4xx/5xx.
 - El noindex considera meta robots y la cabecera `X-Robots-Tag`. El sitemap del listado cruza locs del XML con lo rastreado (incluye bloqueadas por robots.txt, sin pedirlas).
+- Sitios en la home como bloques en cuadrícula; cada tarjeta muestra nodos de tendencia (mejoró / empeoró / igual) por escaneo.
+- Avatar del header con la foto de Google Auth.
+- Burbuja de escaneo con oleaje continuo y tiempo estimado de fin. El anillo de progreso ya no muestra el porcentaje.
+- El crawler reintenta 5xx transitorios y timeouts; un fallo de red ya no cuenta como 500. User-Agent más cercano a un navegador.
+- Nodos de tendencia: 5 por sitio, con score al pasar el cursor.
+- Firestore (`webs`) fuerza long polling para evitar 400 en el canal Listen.
+
+### Removed
+
+- Pestaña y pantalla **Ajustes** de la organización. El motor de escaneo ya no se configura ahí; el cupo se ve en Sitios y el nombre/cupos se administran en `/admin`.
+- Sparkline de línea roja en las tarjetas de sitio.
+- Guardado de `photoUrl` en Firestore; la foto sale de Google Auth.
 
 ## [0.1.0] — 2026-08-20
 

@@ -67,4 +67,11 @@ describe("filterPages", () => {
     expect(filterPages(rows, "diffNew404").map((p) => p.url)).toEqual(["/x"]);
     expect(httpMixFromPages(rows)).toEqual({ ok: 2, redirect: 0, client: 1, server: 0 });
   });
+
+  it("no cuenta un timeout como 500", () => {
+    const timeout = page({ url: "/x", status: 0, issues: "unreachable", fetched: 1 });
+    expect(filterPages([timeout], "http5xx")).toEqual([]);
+    expect(httpMixFromPages([timeout])).toEqual({ ok: 0, redirect: 0, client: 0, server: 0 });
+    expect(filterPages([timeout], "warning").map((p) => p.url)).toEqual(["/x"]);
+  });
 });

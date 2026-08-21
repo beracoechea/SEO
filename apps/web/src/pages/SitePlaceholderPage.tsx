@@ -11,7 +11,7 @@ import { UrlFeed } from "../components/UrlFeed";
 import { getOrg, getSite, type Org, type Site } from "../lib/db";
 import { filterPages, httpMixFromPages, type PageFilter } from "../lib/pageFilter";
 import { getSiteSummary, listSiteSummaries, resolvedRuntimeUrl, startCrawl, type CrawlDiff, type CrawlRow, type PageSnap } from "../lib/runtime";
-import { crawlProgressPercent } from "../lib/score";
+import { crawlEtaPhrase, crawlEtaSeconds, crawlProgressPercent } from "../lib/score";
 
 const HTTP_KPIS: { filter: PageFilter; tone: "ok" | "info" | "warn" | "danger"; label: string; help: string }[] = [
   { filter: "http200", tone: "ok", label: "audit.http200", help: "filter.http200" },
@@ -187,6 +187,7 @@ export function SitePlaceholderPage() {
   const running = crawl?.status === "running" || busy;
   const pct = running ? crawlProgressPercent(crawl || { status: "running", pages_crawled: 0 }) : null;
   const found = Math.max(crawl?.discovered || 0, crawl?.sitemap_urls || 0, crawl?.pages_crawled || 0);
+  const eta = crawlEtaPhrase(running ? crawlEtaSeconds(crawl || { status: "running", pages_crawled: 0 }) : null);
   const filtered = useMemo(() => filterPages(pages, filter), [pages, filter]);
   const allKpis = [...HTTP_KPIS, ...FINDING_KPIS, ...INDEX_KPIS, ...DIFF_KPIS];
   const httpValues: Record<string, number> = {
@@ -221,7 +222,7 @@ export function SitePlaceholderPage() {
 
       <div className="card audit-hero">
         {running ? (
-          <ScoreRing value={pct} mode="progress" label={t("crawl.scan")} size={132} />
+          <ScoreRing value={pct} mode="progress" label={t("crawl.running")} size={132} />
         ) : (
           <ScoreRing value={crawl?.status === "done" ? crawl.score : null} label={t("audit.score")} size={132} />
         )}
@@ -232,7 +233,7 @@ export function SitePlaceholderPage() {
             {lockedBy
               ? t("crawl.alreadyRunning")
               : running
-                ? t("crawl.scanning", { have: crawl?.pages_crawled ?? 0, cap: found })
+                ? `${t("crawl.scanning", { have: crawl?.pages_crawled ?? 0, cap: found })} · ${t(eta.key, { n: eta.n })}`
                 : crawl
                   ? t("audit.hasData", { pages: crawl.pages_crawled || pages.length })
                   : t("audit.awaitingCrawl")}

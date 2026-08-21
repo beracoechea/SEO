@@ -1,6 +1,7 @@
 import { Building2, LogOut, Users } from "lucide-react";
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
+import { Avatar } from "../components/Avatar";
 import { IconBtn } from "../components/IconBtn";
 import { LangSwitch } from "../components/LangSwitch";
 import { useAuth } from "../context/AuthContext";
@@ -9,12 +10,11 @@ export function AdminShell() {
   const { t } = useTranslation();
   const { user, logout } = useAuth();
   const navigate = useNavigate();
-  const initial = (user?.displayName || user?.email || "?").slice(0, 1).toUpperCase();
 
   return (
     <div className="app-shell">
       <header className="app-bar">
-        <div className="avatar">{initial}</div>
+        <Avatar user={user} />
         <strong className="app-bar-title">{t("admin.badge")}</strong>
         <LangSwitch />
         <IconBtn label={t("admin.backToOrgs")} tone="sky" showLabel onClick={() => navigate("/orgs")} icon={<Building2 size={20} />} />

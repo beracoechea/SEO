@@ -18,9 +18,12 @@ def score_url(
 ) -> tuple[int, list[str]]:
     n = 100
     issues: list[str] = []
-    if status == 0 or status >= 500:
+    if status >= 500:
         n -= 80
         issues.append("http5xx")
+    elif status == 0:
+        n -= 18
+        issues.append("unreachable")
     elif status >= 400:
         n -= 50
         issues.append("http4xx")

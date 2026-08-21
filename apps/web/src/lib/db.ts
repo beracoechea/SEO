@@ -94,12 +94,16 @@ export async function isPlatformAdminUid(uid: string): Promise<boolean> {
 export async function upsertUserProfile(uid: string, data: {
   email: string;
   displayName: string;
-  photoUrl: string | null;
   locale: string;
 }) {
   await setDoc(
     doc(db(), "users", uid),
-    { ...data, email: data.email.trim().toLowerCase(), updatedAt: serverTimestamp() },
+    {
+      email: data.email.trim().toLowerCase(),
+      displayName: data.displayName || "",
+      locale: data.locale,
+      updatedAt: serverTimestamp(),
+    },
     { merge: true },
   );
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { crawlProgressPercent, httpMixPercents, scoreDelta, scoreTone } from "./score";
+import { crawlEtaPhrase, crawlEtaSeconds, crawlProgressPercent, httpMixPercents, scoreDelta, scoreTone, trendSteps } from "./score";
 
 describe("scoreTone", () => {
   it("usa estados esmeralda / ámbar / carmesí", () => {
@@ -39,5 +39,40 @@ describe("scoreDelta", () => {
     expect(scoreDelta(80, 70)).toBe(10);
     expect(scoreDelta(60, 72)).toBe(-12);
     expect(scoreDelta(80, null)).toBeNull();
+  });
+});
+
+describe("trendSteps", () => {
+  it("marca nodos de mejora, baja o igual", () => {
+    const steps = trendSteps([
+      { score: 70, at: "2026-08-01" },
+      { score: 80, at: "2026-08-02" },
+      { score: 80, at: "2026-08-03" },
+      { score: 60, at: "2026-08-04" },
+    ]);
+    expect(steps.map((s) => s.kind)).toEqual(["start", "up", "same", "down"]);
+  });
+
+  it("deja 5 nodos, los más recientes", () => {
+    const points = Array.from({ length: 8 }, (_, i) => ({ score: 50 + i, at: `2026-08-0${i + 1}` }));
+    const steps = trendSteps(points);
+    expect(steps).toHaveLength(5);
+    expect(steps[0].score).toBe(53);
+    expect(steps[4].score).toBe(57);
+  });
+});
+
+describe("crawlEtaSeconds", () => {
+  it("estima con el ritmo del escaneo", () => {
+    const started = new Date("2026-08-21T12:00:00Z").getTime();
+    const now = started + 10_000;
+    expect(
+      crawlEtaSeconds(
+        { status: "running", pages_crawled: 20, discovered: 100, started_at: "2026-08-21T12:00:00Z" },
+        now,
+      ),
+    ).toBe(40);
+    expect(crawlEtaPhrase(40)).toEqual({ key: "crawl.etaSec", n: 40 });
+    expect(crawlEtaPhrase(null).key).toBe("crawl.etaCalc");
   });
 });

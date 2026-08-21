@@ -49,7 +49,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           await upsertUserProfile(next.uid, {
             email: next.email ?? "",
             displayName: next.displayName ?? "",
-            photoUrl: next.photoURL,
             locale,
           });
         } catch {

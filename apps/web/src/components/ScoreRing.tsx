@@ -16,7 +16,7 @@ export function ScoreRing({
   const r = 38;
   const c = 2 * Math.PI * r;
   const dash = (pct / 100) * c;
-  const shown = value == null ? "—" : mode === "progress" ? `${Math.round(value)}%` : String(Math.round(value));
+  const shown = value == null ? "—" : String(Math.round(value));
 
   return (
     <div className={`score-ring score-${tone}${mode === "progress" ? " is-filling" : ""}`} style={{ width: size, height: size }} title={label}>
@@ -31,8 +31,14 @@ export function ScoreRing({
         />
       </svg>
       <div className="score-ring-label">
-        <strong>{shown}</strong>
-        {label ? <span>{label}</span> : null}
+        {mode === "progress" ? (
+          <span className="score-scan-pulse" aria-label={label} />
+        ) : (
+          <>
+            <strong>{shown}</strong>
+            {label ? <span>{label}</span> : null}
+          </>
+        )}
       </div>
     </div>
   );

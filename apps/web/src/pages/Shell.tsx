@@ -1,7 +1,8 @@
 import { NavLink, Outlet, useNavigate, useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useEffect, useState } from "react";
-import { LayoutGrid, LogOut, Settings, Shield, Users } from "lucide-react";
+import { LayoutGrid, LogOut, Shield, Users } from "lucide-react";
+import { Avatar } from "../components/Avatar";
 import { LangSwitch } from "../components/LangSwitch";
 import { IconBtn } from "../components/IconBtn";
 import { useAuth } from "../context/AuthContext";
@@ -16,7 +17,6 @@ export function Shell() {
   const [runtimeUp, setRuntimeUp] = useState<boolean | null>(null);
   const [orgs, setOrgs] = useState<{ id: string; name: string }[]>([]);
   const [org, setOrg] = useState<Org | null>(null);
-  const initial = (user?.displayName || user?.email || "?").slice(0, 1).toUpperCase();
 
   useEffect(() => {
     if (!orgId) return;
@@ -54,9 +54,7 @@ export function Shell() {
   return (
     <div className="app-shell">
       <header className="app-bar">
-        <div className="avatar" title={user?.displayName || user?.email || ""}>
-          {initial}
-        </div>
+        <Avatar user={user} />
         <select
           className="org-select"
           value={orgId}
@@ -99,10 +97,6 @@ export function Shell() {
         <NavLink to={`/o/${orgId}/team`} className={({ isActive }) => (isActive ? "tab active" : "tab")}>
           <Users size={22} />
           <span>{t("nav.team")}</span>
-        </NavLink>
-        <NavLink to={`/o/${orgId}/settings`} className={({ isActive }) => (isActive ? "tab active" : "tab")}>
-          <Settings size={22} />
-          <span>{t("nav.settings")}</span>
         </NavLink>
       </nav>
     </div>

@@ -4,7 +4,7 @@ import { Link, useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { IconBtn } from "../components/IconBtn";
 import { ScoreRing } from "../components/ScoreRing";
-import { Sparkline } from "../components/Sparkline";
+import { TrendNodes } from "../components/TrendNodes";
 import { getOrg, listSites, type Org, type Site } from "../lib/db";
 import {
   listSiteSummaries,
@@ -13,7 +13,7 @@ import {
   type CrawlHistoryPoint,
   type CrawlRow,
 } from "../lib/runtime";
-import { crawlProgressPercent, scoreDelta } from "../lib/score";
+import { crawlEtaPhrase, crawlEtaSeconds, crawlProgressPercent } from "../lib/score";
 
 function ago(iso: string | null | undefined, t: (k: string, opts?: Record<string, unknown>) => string): string {
   if (!iso) return t("sites.never");
@@ -105,6 +105,7 @@ export function OrgHomePage() {
   const scanPct = scanning
     ? crawlProgressPercent(scanningRow || { status: "running", pages_crawled: 0 })
     : 0;
+  const eta = crawlEtaPhrase(scanningRow ? crawlEtaSeconds(scanningRow) : null);
 
   return (
     <div className="page stack">
@@ -122,16 +123,20 @@ export function OrgHomePage() {
 
       {scanningSite ? (
         <div className="scan-water" aria-live="polite">
-          <div className="scan-water-fill" style={{ height: `${Math.max(8, scanPct)}%` }} />
+          <div className="scan-water-fill" style={{ height: `${Math.max(22, scanPct)}%` }}>
+            <span className="scan-water-wave" />
+            <span className="scan-water-wave is-slow" />
+          </div>
           <div className="scan-water-copy">
             <strong>{t("crawl.running")}</strong>
             <span>
-              {scanningSite.name} · {scanPct}% ·{" "}
+              {scanningSite.name} ·{" "}
               {t("crawl.scanning", {
                 have: scanningRow?.pages_crawled ?? 0,
                 cap: Math.max(scanningRow?.discovered || 0, scanningRow?.sitemap_urls || 0, scanningRow?.pages_crawled || 0),
               })}
             </span>
+            <span className="scan-water-eta">{t(eta.key, { n: eta.n })}</span>
           </div>
         </div>
       ) : null}
@@ -140,25 +145,27 @@ export function OrgHomePage() {
       {sites.length === 0 ? (
         <div className="card muted">{t("sites.empty")}</div>
       ) : (
-        <div className="stack">
+        <div className="site-grid">
           {sites.map((s) => {
             const row = scores[s.id];
             const series = [...(history[s.id] || [])].reverse();
-            const prev = series.length >= 2 ? series[series.length - 2] : undefined;
-            const delta = row?.status === "done" ? scoreDelta(row.score, prev?.score) : null;
             const busyThis = scanning === s.id || row?.status === "running";
             const waiting = Boolean(scanning && scanning !== s.id);
             const pct = busyThis ? crawlProgressPercent(row || { status: "running", pages_crawled: 0 }) : null;
             return (
               <div key={s.id} className={`site-card${busyThis ? " is-scanning" : ""}${waiting ? " is-waiting" : ""}`}>
-                {busyThis ? (
-                  <ScoreRing value={pct} mode="progress" size={84} label={t("crawl.scan")} />
-                ) : (
-                  <ScoreRing value={row?.status === "done" ? row.score : null} size={84} label={t("audit.score")} />
-                )}
                 <Link to={`/o/${orgId}/s/${s.id}`} className="site-card-main">
-                  <strong>{s.name}</strong>
-                  <div className="muted ellipsis">{s.origin}</div>
+                  <div className="site-card-head">
+                    {busyThis ? (
+                      <ScoreRing value={pct} mode="progress" size={72} label={t("crawl.running")} />
+                    ) : (
+                      <ScoreRing value={row?.status === "done" ? row.score : null} size={72} label={t("audit.score")} />
+                    )}
+                    <div className="site-card-copy">
+                      <strong>{s.name}</strong>
+                      <div className="muted ellipsis">{s.origin}</div>
+                    </div>
+                  </div>
                   {busyThis ? (
                     <div className="site-card-meta">
                       {t("crawl.scanning", {
@@ -170,20 +177,18 @@ export function OrgHomePage() {
                     <div className="site-card-meta">
                       <span>{row?.status === "done" ? t("sites.pagesShort", { n: row.pages_crawled || 0 }) : t("sites.never")}</span>
                       {row?.finished_at ? <span>· {ago(row.finished_at, t)}</span> : null}
-                      {delta != null ? (
-                        <span className={delta >= 0 ? "delta-up" : "delta-down"}>
-                          {delta >= 0 ? `↑ +${delta}` : `↓ ${delta}`}
-                        </span>
-                      ) : null}
                     </div>
                   )}
                   {waiting ? <div className="muted">{t("sites.waiting")}</div> : null}
-                  <Sparkline values={series.map((p) => p.score ?? 0).filter((n) => n > 0)} />
+                  {!busyThis ? (
+                    <TrendNodes points={series.map((p) => ({ score: p.score, at: p.finished_at }))} />
+                  ) : null}
                 </Link>
                 <div className="site-card-actions">
                   <IconBtn
                     label={busyThis ? t("crawl.running") : waiting ? t("sites.waiting") : t("crawl.scan")}
                     tone="accent"
+                    showLabel
                     disabled={busyThis || waiting || org?.status === "suspended"}
                     onClick={(e) => void scan(s, e)}
                     icon={<Play size={18} />}

@@ -215,7 +215,7 @@ def list_summaries(user: dict = Depends(require_user)) -> dict:
         history: dict[str, list[dict]] = {}
         for h in hist_rows:
             bucket = history.setdefault(h["site_id"], [])
-            if len(bucket) >= 8:
+            if len(bucket) >= 5:
                 continue
             bucket.append(dict(h))
         active = con.execute("SELECT * FROM crawls WHERE status='running' LIMIT 1").fetchone()
