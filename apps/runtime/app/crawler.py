@@ -2,10 +2,17 @@ from __future__ import annotations
 
 import asyncio
 import gzip
+import http.client
 import os
+import socket
 import time
+import urllib.error
+import urllib.request
+import zlib
 from collections import Counter, deque
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
+from http.cookiejar import CookieJar
 from urllib.parse import urlparse
 from uuid import uuid4
 
@@ -33,21 +40,162 @@ UA = (
     "Chrome/128.0.0.0 Safari/537.36 TechnicalSEOMonitor/0.1"
 )
 SAFETY_CAP = 50000
+WORKERS = 24
+RATE_CAP = 12.0
 TRANSIENT_HTTP = {0, 429, 500, 502, 503, 504, 520, 521, 522, 523, 524}
 
 
+class _NoRedirect(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):  # noqa: ANN001
+        return None
+
+
+def _timeout_s(request: httpx.Request) -> float:
+    timeout = request.extensions.get("timeout")
+    read = getattr(timeout, "read", None)
+    if isinstance(read, (int, float)):
+        return float(read)
+    pool = getattr(timeout, "pool", None)
+    if isinstance(pool, (int, float)):
+        return float(pool)
+    return 20.0
+
+
+def _inflate_body(raw_headers: list[tuple[str, str]], body: bytes) -> bytes:
+    enc = ""
+    for key, value in raw_headers:
+        if key.lower() == "content-encoding":
+            enc = value.lower()
+            break
+    if not enc or enc == "identity":
+        return body
+    try:
+        if "gzip" in enc:
+            return gzip.decompress(body)
+        if "deflate" in enc:
+            try:
+                return zlib.decompress(body)
+            except zlib.error:
+                return zlib.decompress(body, -zlib.MAX_WBITS)
+    except Exception:
+        return body
+    return body
+
+
+def _urllib_response(request: httpx.Request, opener: urllib.request.OpenerDirector) -> httpx.Response:
+    headers = {k.decode("latin-1"): v.decode("latin-1") for k, v in request.headers.raw}
+    headers.pop("Host", None)
+    headers.pop("host", None)
+    req = urllib.request.Request(str(request.url), headers=headers, method=request.method)
+    try:
+        with opener.open(req, timeout=_timeout_s(request)) as resp:
+            status = getattr(resp, "status", None) or resp.getcode()
+            raw_headers = list(resp.headers.items())
+            body = resp.read()
+    except urllib.error.HTTPError as exc:
+        status = exc.code
+        raw_headers = list(exc.headers.items()) if exc.headers else []
+        try:
+            body = exc.read()
+        except Exception:
+            body = b""
+    except TimeoutError as exc:
+        raise httpx.TimeoutException(str(exc)) from exc
+    except urllib.error.URLError as exc:
+        reason = exc.reason
+        if isinstance(reason, (TimeoutError, socket.timeout)):
+            raise httpx.TimeoutException(str(exc)) from exc
+        raise httpx.ConnectError(str(exc)) from exc
+    except (ConnectionError, http.client.IncompleteRead, OSError) as exc:
+        raise httpx.ConnectError(str(exc)) from exc
+    body = _inflate_body(raw_headers, body)
+    filtered = [
+        (k, v)
+        for k, v in raw_headers
+        if k.lower() not in {"content-encoding", "content-length", "transfer-encoding"}
+    ]
+    return httpx.Response(status, headers=filtered, content=body, request=request)
+
+
+class AsyncUrllibTransport(httpx.AsyncBaseTransport):
+    """Fetch via stdlib urllib so Cloudflare bot checks do not 403 the crawl."""
+
+    def __init__(self, pool: int = WORKERS, executor: ThreadPoolExecutor | None = None) -> None:
+        self._executor = executor
+        self._openers = [self._make_opener() for _ in range(max(1, pool))]
+        self._queue: asyncio.Queue[urllib.request.OpenerDirector] | None = None
+
+    def _make_opener(self) -> urllib.request.OpenerDirector:
+        return urllib.request.build_opener(
+            urllib.request.HTTPCookieProcessor(CookieJar()),
+            _NoRedirect,
+        )
+
+    async def handle_async_request(self, request: httpx.Request) -> httpx.Response:
+        if self._queue is None:
+            self._queue = asyncio.Queue()
+            for opener in self._openers:
+                self._queue.put_nowait(opener)
+        opener = await self._queue.get()
+        loop = asyncio.get_running_loop()
+        try:
+            try:
+                if self._executor is not None:
+                    return await loop.run_in_executor(self._executor, _urllib_response, request, opener)
+                return await asyncio.to_thread(_urllib_response, request, opener)
+            except httpx.ConnectError:
+                opener = self._make_opener()
+                raise
+        finally:
+            self._queue.put_nowait(opener)
+
+
 def make_client(**kwargs) -> httpx.AsyncClient:
+    executor = kwargs.pop("executor", None)
+    pool = int(kwargs.pop("pool", WORKERS))
+    if "transport" not in kwargs:
+        kwargs["transport"] = AsyncUrllibTransport(pool=pool, executor=executor)
     return httpx.AsyncClient(**kwargs)
+
+
+class _RateLimiter:
+    def __init__(self, per_sec: float) -> None:
+        self.per_sec = per_sec
+        self._lock = asyncio.Lock()
+        self._next = time.monotonic()
+
+    async def acquire(self) -> None:
+        if self.per_sec <= 0:
+            return
+        async with self._lock:
+            now = time.monotonic()
+            wait = max(0.0, self._next - now)
+            self._next = max(now, self._next) + 1.0 / self.per_sec
+        if wait:
+            await asyncio.sleep(wait)
+
+
+def is_challenge_page(status: int, text: str) -> bool:
+    if status not in {403, 503}:
+        return False
+    blob = (text or "").lower()
+    return "just a moment" in blob or "cf-browser-verification" in blob or "challenge-platform" in blob
 
 
 def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
-def _delay_s(rate: float) -> float:
+def _rate_per_sec(rate: float) -> float:
     if os.getenv("CRAWL_NO_DELAY") == "1":
         return 0.0
-    return 1.0 / max(3.0, min(rate, 8.0))
+    return max(8.0, min(float(rate or 10), RATE_CAP))
+
+
+def _worker_count() -> int:
+    if os.getenv("CRAWL_NO_DELAY") == "1":
+        return 3
+    return WORKERS
 
 
 def _is_htmlish(content_type: str) -> bool:
@@ -112,7 +260,7 @@ async def _get_once(client: httpx.AsyncClient, url: str) -> Fetch:
         seen.add(current)
         try:
             res = await client.get(current, follow_redirects=False)
-        except httpx.HTTPError:
+        except (httpx.HTTPError, OSError, TimeoutError):
             ms = int((time.perf_counter() - t0) * 1000)
             return Fetch(0, "", hops, current, ms, "", b"", first_3xx)
         ct = res.headers.get("content-type", "")
@@ -148,7 +296,8 @@ async def _get(client: httpx.AsyncClient, url: str) -> Fetch:
     while attempt < _max_retries(last.status):
         attempt += 1
         if os.getenv("CRAWL_NO_DELAY") != "1":
-            await asyncio.sleep(0.4 * attempt)
+            wait = 1.5 * attempt if last.status == 0 else 0.4 * attempt
+            await asyncio.sleep(wait)
         last = await _get_once(client, url)
     return last
 
@@ -228,6 +377,8 @@ def _record_page(
     snaps.append((sc, depth))
     if expect_html and title:
         titles.append(title.strip().lower())
+    if "canonical" in issues:
+        counts["canonical"] = counts.get("canonical", 0) + 1
     con.execute(
         """INSERT INTO snapshots(crawl_id, url, status, depth, title, h1, meta, canonical, score, issues, fetched_at, ms, final_url, robots_meta, hops, redirect_status, robots_header, fetched)
            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,1)""",
@@ -348,11 +499,7 @@ def _progress(
 ) -> None:
     dups = sum(1 for _t, n in Counter(titles).items() if n > 1)
     avg = int(sum(times) / len(times)) if times else 0
-    canon_mis = 0
-    rows = con.execute("SELECT issues FROM snapshots WHERE crawl_id=?", (crawl_id,)).fetchall()
-    for row in rows:
-        if row["issues"] and "canonical" in row["issues"].split(","):
-            canon_mis += 1
+    canon_mis = counts.get("canonical", 0)
     score = site_score(snaps) if snaps else None
     if dups:
         score = max(0, (score or 0) - min(15, dups * 2))
@@ -403,7 +550,9 @@ async def run_crawl(
     host_origin = origin
     crawl_id = crawl_id or str(uuid4())
     cap = min(SAFETY_CAP, max(1, max_pages or 20000))
-    delay = _delay_s(rate)
+    limiter = _RateLimiter(_rate_per_sec(rate))
+    workers_n = _worker_count()
+    executor = ThreadPoolExecutor(max_workers=workers_n)
 
     con = connect()
     existing = con.execute("SELECT id FROM crawls WHERE id=?", (crawl_id,)).fetchone()
@@ -429,7 +578,12 @@ async def run_crawl(
     }
 
     try:
-        async with make_client(headers=headers, timeout=httpx.Timeout(20.0, connect=8.0)) as client:
+        async with make_client(
+            headers=headers,
+            timeout=httpx.Timeout(20.0, connect=8.0),
+            executor=executor,
+            pool=workers_n,
+        ) as client:
             queue: deque[tuple[str, int]] = deque()
             seen: set[str] = set()
             sitemap_set: set[str] = set()
@@ -480,8 +634,8 @@ async def run_crawl(
                         enqueue(t.strip(), 1, via="seed")
 
                 try:
+                    await limiter.acquire()
                     robots = await _get(client, origin + "/robots.txt")
-                    await asyncio.sleep(delay)
                     if robots.status == 200:
                         disallow = parse_robots_disallow(robots.text)
                         maps = parse_robots_sitemaps(origin, robots.text)
@@ -495,8 +649,8 @@ async def run_crawl(
                 nested: list[str] = []
                 for sm in maps[:40]:
                     try:
+                        await limiter.acquire()
                         fetch = await _get(client, sm)
-                        await asyncio.sleep(delay)
                     except ValueError:
                         continue
                     xml = _decode_maybe_gzip(fetch)
@@ -512,8 +666,8 @@ async def run_crawl(
                                 enqueue(loc, 1, sm, via="sitemap")
                 for sm in nested[:80]:
                     try:
+                        await limiter.acquire()
                         fetch = await _get(client, sm)
-                        await asyncio.sleep(delay)
                     except ValueError:
                         continue
                     xml = _decode_maybe_gzip(fetch)
@@ -526,30 +680,65 @@ async def run_crawl(
                             enqueue(loc, 1, sm, via="sitemap")
 
             crawled = 0
-            while queue and crawled < cap:
-                url, depth = queue.popleft()
+            in_flight = 0
+            lock = asyncio.Lock()
+
+            async def visit(url: str, depth: int) -> None:
+                nonlocal crawled
+                await limiter.acquire()
                 try:
                     fetch = await _get(client, url)
                 except ValueError:
-                    continue
+                    return
+                except Exception:
+                    fetch = Fetch(0, "", 0, url, 0, "", b"")
                 expect_html = "html" in fetch.content_type.lower() or fetch.text.strip().startswith("<")
                 if url.rstrip("/").endswith("robots.txt"):
                     expect_html = False
-                links = _record_page(
-                    con, crawl_id, url, fetch, depth, expect_html, snaps, buckets, counts, titles
-                )
-                times.append(fetch.ms)
-                crawled += 1
-                final = fetch.final or url
-                if kind == "site" and expect_html and fetch.status < 400 and same_host(final, host_origin):
-                    for href in links:
-                        enqueue(href, depth + 1, final, via="link")
-                found = max(sitemap_count, crawled + len(queue))
-                if crawled % 2 == 0 or crawled == 1:
-                    _progress(
-                        con, crawl_id, snaps, buckets, counts, sitemap_count, titles, cap, False, times, found
-                    )
-                await asyncio.sleep(delay)
+                async with lock:
+                    if crawled >= cap:
+                        return
+                    try:
+                        links = _record_page(
+                            con, crawl_id, url, fetch, depth, expect_html, snaps, buckets, counts, titles
+                        )
+                    except Exception:
+                        crawled += 1
+                        return
+                    times.append(fetch.ms)
+                    crawled += 1
+                    final = fetch.final or url
+                    if kind == "site" and expect_html and fetch.status < 400 and same_host(final, host_origin):
+                        for href in links:
+                            enqueue(href, depth + 1, final, via="link")
+                    found = max(sitemap_count, crawled + len(queue))
+                    if crawled % 8 == 0 or crawled <= 2:
+                        _progress(
+                            con, crawl_id, snaps, buckets, counts, sitemap_count, titles, cap, False, times, found
+                        )
+
+            async def worker() -> None:
+                nonlocal in_flight
+                while True:
+                    item: tuple[str, int] | None = None
+                    async with lock:
+                        if crawled >= cap:
+                            return
+                        if queue:
+                            item = queue.popleft()
+                            in_flight += 1
+                        elif in_flight == 0:
+                            return
+                    if item is None:
+                        await asyncio.sleep(0.02)
+                        continue
+                    try:
+                        await visit(*item)
+                    finally:
+                        async with lock:
+                            in_flight -= 1
+
+            await asyncio.gather(*(worker() for _ in range(workers_n)))
 
         found = max(sitemap_count, len(snaps), len(sitemap_set))
         _finalize_indexation(con, crawl_id, sitemap_set, link_set, seed_set, blocked_sitemap)
@@ -562,6 +751,7 @@ async def run_crawl(
         con.commit()
         raise
     finally:
+        executor.shutdown(wait=False, cancel_futures=True)
         con.close()
 
     return {"id": crawl_id, "status": "done", "pages": len(snaps), "sitemap_urls": sitemap_count}

@@ -86,14 +86,14 @@ export function OrgHomePage() {
         kind: "site",
         origin: site.origin,
         templateUrls: site.templateUrls,
-        rateLimit: org.defaultRateLimit || 4,
+        rateLimit: org.defaultRateLimit || 10,
         maxPages: Math.min(site.maxPages || 20000, org.maxPagesPerSite || 20000),
         maxDepth: site.maxDepth || 8,
       });
       await refreshScores();
     } catch (e) {
       const msg = e instanceof Error ? e.message : "";
-      if (msg === "crawl.alreadyRunning") setError(t("crawl.alreadyRunning"));
+      if (msg === "crawl.alreadyRunning") await refreshScores();
       else if (msg === "Failed to fetch" || msg.includes("NetworkError")) setError(t("crawl.needRuntime"));
       else setError(t("crawl.failed"));
       setScanning(null);
@@ -197,11 +197,16 @@ export function OrgHomePage() {
                     </div>
                   ) : (
                     <div className="site-card-meta">
-                      <span>{row?.status === "done" ? t("sites.pagesShort", { n: row.pages_crawled || 0 }) : t("sites.never")}</span>
+                      <span>
+                        {row?.status === "done"
+                          ? t("sites.pagesShort", { n: row.pages_crawled || 0 })
+                          : row?.status === "failed" && row.pages_crawled
+                            ? t("crawl.incompleteShort", { n: row.pages_crawled })
+                            : t("sites.never")}
+                      </span>
                       {row?.finished_at ? <span>· {ago(row.finished_at, t)}</span> : null}
                     </div>
                   )}
-                  {waiting ? <div className="muted">{t("sites.waiting")}</div> : null}
                   {!busyThis ? (
                     <TrendNodes points={series.map((p) => ({ score: p.score, at: p.finished_at }))} />
                   ) : null}

@@ -402,3 +402,41 @@ def test_connect_error_is_not_500(tmp_path, monkeypatch):
         summ = client.get("/api/sites/shop/summary").json()
         assert summ["crawl"]["urls_5xx"] == 0
         assert any("unreachable" in (p.get("issues") or "") for p in summ["pages"])
+
+
+def test_connection_reset_does_not_abort_crawl(tmp_path, monkeypatch):
+    monkeypatch.setenv("DATA_DIR", str(tmp_path))
+    monkeypatch.setenv("ALLOW_ANON", "1")
+    monkeypatch.setenv("CRAWL_NO_DELAY", "1")
+    init_db()
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        path = request.url.path.rstrip("/") or "/"
+        if path.endswith("robots.txt"):
+            return httpx.Response(200, text="User-agent: *\nAllow: /\n")
+        if "sitemap" in path:
+            return httpx.Response(404, text="no")
+        if path == "/about":
+            raise OSError(10054, "connection reset by peer")
+        body = (
+            "<html><head><title>Home</title><meta name='description' content='Shop'>"
+            "<link rel='canonical' href='https://www.example.com/'></head>"
+            "<body><h1>Home</h1><a href='/about'>About</a></body></html>"
+        )
+        return httpx.Response(200, text=body, headers={"content-type": "text/html"})
+
+    transport = httpx.MockTransport(handler)
+    monkeypatch.setattr(
+        "app.crawler.make_client",
+        lambda **kw: httpx.AsyncClient(transport=transport, timeout=kw.get("timeout", 10.0), headers=kw.get("headers")),
+    )
+    with TestClient(app) as client:
+        res = client.post(
+            "/api/sites/shop/crawls",
+            json={"kind": "site", "origin": "https://www.example.com", "maxPages": 5},
+        )
+        assert res.status_code == 200, res.text
+        summ = client.get("/api/sites/shop/summary").json()
+        assert summ["crawl"]["status"] == "done"
+        assert summ["crawl"]["pages_crawled"] >= 1
+        assert summ["crawl"]["urls_5xx"] == 0

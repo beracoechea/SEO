@@ -119,9 +119,11 @@ Parar: `docker compose down` (el volumen `runtime-data` se conserva; no borres l
 
 ### 1.6 Primer escaneo (salud técnica)
 
-En **Sitios**, pulsa **Escanear** en la tarjeta. El motor pide de verdad esa web: home, `robots.txt`, sitemap (cuenta y URLs), y hasta 400 páginas siguiendo enlaces internos del mismo host (3–5 req/s). Title, H1, meta, canonical, ALT, tiempos y score salen de esas respuestas, no de un stub.
+En **Sitios**, pulsa **Escanear** en la tarjeta. El motor pide de verdad esa web: home, `robots.txt`, sitemap (cuenta y URLs) y sigue enlaces internos del mismo host hasta el tope de la org (por defecto 20 000 URLs, varias peticiones en paralelo). Title, H1, meta, canonical, ALT, tiempos y score salen de esas respuestas, no de un stub.
 
-El historial queda en SQLite local. No es Core Web Vitals de laboratorio ni las 20 000 URLs de un sitio enorme en un solo clic.
+Si el sitio está detrás de Cloudflare, el runtime usa un cliente que suele pasar el challenge; un corte de conexión no tira el escaneo entero. Solo corre **un** crawl a la vez (el resto de botones Escanear se deshabilitan). Un sitio grande (p. ej. ~14 000 URLs) tarda del orden de **decenas de minutos**, no una jornada.
+
+El historial queda en SQLite local. No es Core Web Vitals de laboratorio.
 
 ---
 

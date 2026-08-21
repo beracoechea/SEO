@@ -1,3 +1,4 @@
+from app.crawler import is_challenge_page
 from app.parse import (
     assert_public_http_url,
     canonical_matches,
@@ -82,3 +83,10 @@ def test_score_http_and_onpage():
 
 def test_site_score_weights_home():
     assert site_score([(100, 0), (0, 8)]) > 50
+
+
+def test_cf_challenge_page():
+    html = "<html><head><title>Just a moment...</title></head></html>"
+    assert is_challenge_page(403, html)
+    assert not is_challenge_page(403, "<html><title>Forbidden</title></html>")
+    assert not is_challenge_page(200, html)

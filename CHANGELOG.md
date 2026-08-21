@@ -21,10 +21,11 @@ El versionado sigue [SemVer](https://semver.org/lang/es/).
 - Este monitor usa Firestore **named database `webs`** en el proyecto Blaze compartido. Auth es el mismo; `(default)` no se toca.
 - Paleta de producto (fondo `#f8fafc`/`#fff`, primario `#0f172a`/`#1E3a8a`, acentos esmeralda/cielo, estados ámbar y carmesí) y anillos/barras de auditoría.
 - Guía de instalación (desarrollo + Docker en el cliente) y tester automático (`scripts/verify.ps1`, hook de `git push`, GitHub Actions).
-- Runtime: crawl on-demand del sitio (BFS + sitemap, tope de la org), JWT, SQLite. Un escaneo a la vez, progreso en % y historial en la tarjeta. La web en desarrollo arranca el motor sola y el usuario solo pulsa Escanear.
+- Runtime: crawl on-demand del sitio (BFS + sitemap, tope de la org), JWT, SQLite. Un escaneo a la vez, progreso y historial en la tarjeta. La web en desarrollo arranca el motor sola y el usuario solo pulsa Escanear.
 - Firestore rules y guía de versiones / producción.
 - Editar y eliminar sitios (origin, plantillas, exclusiones) desde la tarjeta o la ficha. Mientras ese sitio se escanea, editar y eliminar quedan bloqueados.
 - Botón de consulta en el header con la colorimetría de los nodos (gris / verde / rojo / azul).
+- Aviso cuando un escaneo se corta a medias (score parcial y cuántas URLs quedaron).
 
 ### Changed
 
@@ -33,15 +34,19 @@ El versionado sigue [SemVer](https://semver.org/lang/es/).
 - Sitios en la home como bloques en cuadrícula; cada tarjeta muestra nodos de tendencia (mejoró / empeoró / igual) por escaneo.
 - Avatar del header con la foto de Google Auth.
 - Burbuja de escaneo con oleaje continuo y tiempo estimado de fin. El anillo de progreso ya no muestra el porcentaje.
-- El crawler reintenta 5xx transitorios y timeouts; un fallo de red ya no cuenta como 500. User-Agent más cercano a un navegador.
+- El crawler reintenta 5xx transitorios, timeouts y cortes de conexión; un fallo de red ya no cuenta como 500 ni aborta el crawl entero. User-Agent más cercano a un navegador.
 - Nodos de tendencia: 5 por sitio, con score al pasar el cursor.
 - Firestore (`webs`) fuerza long polling para evitar 400 en el canal Listen.
 - GitHub Actions: `checkout@v5`, `setup-node@v5` y `setup-python@v6` (runtime Node 24; Node 20 está deprecado en los runners).
 - Caché local de Firestore y reintento breve si el DNS/red corta el canal Listen/Write.
+- El crawl pide varias URLs en paralelo (~8–12/s) para sitios grandes (sitemap de miles de URLs).
+- Sitios detrás de Cloudflare (challenge “Just a moment…”) se piden con un cliente que el WAF suele dejar pasar.
+- Ya no se muestra el banner naranja de “un escaneo a la vez”; el botón Escanear se deshabilita mientras corre uno.
 
 ### Fixed
 
 - El contrato de `verify` acepta `initializeFirestore` en la BD named `webs` (antes exigía `getFirestore` y fallaba el CI).
+- Sitios con Cloudflare devolvían 1 URL (403 del challenge) y el score quedaba en “—” si el host cortaba la conexión a mitad del crawl.
 
 ### Removed
 

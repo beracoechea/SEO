@@ -108,14 +108,14 @@ export function SitePlaceholderPage() {
         kind: "site",
         origin: site.origin,
         templateUrls: site.templateUrls,
-        rateLimit: org.defaultRateLimit || 4,
+        rateLimit: org.defaultRateLimit || 10,
         maxPages: Math.min(site.maxPages || 20000, org.maxPagesPerSite || 20000),
         maxDepth: site.maxDepth || 8,
       });
       await loadSummary();
     } catch (e) {
       const msg = e instanceof Error ? e.message : "";
-      if (msg === "crawl.alreadyRunning") setError(t("crawl.alreadyRunning"));
+      if (msg === "crawl.alreadyRunning") await loadSummary();
       else if (msg === "Failed to fetch" || msg.includes("NetworkError")) setError(t("crawl.needRuntime"));
       else setError(t("crawl.failed"));
       setBusy(false);
@@ -224,17 +224,24 @@ export function SitePlaceholderPage() {
         {running ? (
           <ScoreRing value={pct} mode="progress" label={t("crawl.running")} size={132} />
         ) : (
-          <ScoreRing value={crawl?.status === "done" ? crawl.score : null} label={t("audit.score")} size={132} />
+          <ScoreRing
+            value={crawl && (crawl.status === "done" || (crawl.status === "failed" && crawl.pages_crawled)) ? crawl.score : null}
+            label={t("audit.score")}
+            size={132}
+          />
         )}
         <div className="stack">
           <h1 style={{ margin: 0 }}>{site?.name || t("audit.title")}</h1>
           <p className="muted">{site?.origin}</p>
           <p className="muted">
-            {lockedBy
-              ? t("crawl.alreadyRunning")
-              : running
+            {running
                 ? `${t("crawl.scanning", { have: crawl?.pages_crawled ?? 0, cap: found })} · ${t(eta.key, { n: eta.n })}`
-                : crawl
+                : crawl?.status === "failed"
+                  ? t("crawl.incomplete", {
+                      pages: crawl.pages_crawled || pages.length,
+                      cap: found,
+                    })
+                  : crawl
                   ? t("audit.hasData", { pages: crawl.pages_crawled || pages.length })
                   : t("audit.awaitingCrawl")}
           </p>

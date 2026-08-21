@@ -70,7 +70,7 @@ class CrawlIn(BaseModel):
     origin: str
     templateUrls: list[str] = []
     url: str | None = None
-    rateLimit: float = 4
+    rateLimit: float = 10
     maxPages: int = 20000
     maxDepth: int = 8
 
