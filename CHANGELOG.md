@@ -47,6 +47,7 @@ El versionado sigue [SemVer](https://semver.org/lang/es/).
 
 - El contrato de `verify` acepta `initializeFirestore` en la BD named `webs` (antes exigía `getFirestore` y fallaba el CI).
 - Sitios con Cloudflare devolvían 1 URL (403 del challenge) y el score quedaba en “—” si el host cortaba la conexión a mitad del crawl.
+- El E2E de Playwright en CI (botones ES/EN del login) usa el nombre accesible Español/English.
 
 ### Removed
 

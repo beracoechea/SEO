@@ -15,14 +15,14 @@ export function LangSwitch() {
   }
 
   return (
-    <div className={`lang-switch lang-${current}`} role="group" aria-label={t("lang.es")}>
+    <div className={`lang-switch lang-${current}`} role="group" aria-label={`${t("lang.es")} / ${t("lang.en")}`}>
       <Globe size={16} aria-hidden />
       <div className="lang-track">
         <span className={`lang-thumb ${current === "en" ? "is-en" : "is-es"}`} aria-hidden />
-        <button type="button" className={current === "es" ? "is-on" : ""} aria-pressed={current === "es"} onClick={() => setLang("es")}>
+        <button type="button" className={current === "es" ? "is-on" : ""} aria-pressed={current === "es"} aria-label={t("lang.es")} onClick={() => setLang("es")}>
           ES
         </button>
-        <button type="button" className={current === "en" ? "is-on" : ""} aria-pressed={current === "en"} onClick={() => setLang("en")}>
+        <button type="button" className={current === "en" ? "is-on" : ""} aria-pressed={current === "en"} aria-label={t("lang.en")} onClick={() => setLang("en")}>
           EN
         </button>
       </div>
