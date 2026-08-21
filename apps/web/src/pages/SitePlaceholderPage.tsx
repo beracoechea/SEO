@@ -1,6 +1,6 @@
 import { ArrowLeft, Download, Pencil, Play } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useParams } from "react-router-dom";
+import { useLocation, useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { BackLink } from "../components/BackLink";
 import { IconBtn } from "../components/IconBtn";
@@ -10,6 +10,7 @@ import { StatusBars } from "../components/StatusBars";
 import { UrlFeed } from "../components/UrlFeed";
 import { getOrg, getSite, type Org, type Site } from "../lib/db";
 import { filterPages, httpMixFromPages, type PageFilter } from "../lib/pageFilter";
+import { isAdminPath, orgHomePath, siteEditPath } from "../lib/paths";
 import { getSiteSummary, listSiteSummaries, resolvedRuntimeUrl, startCrawl, type CrawlDiff, type CrawlRow, type PageSnap } from "../lib/runtime";
 import { crawlEtaPhrase, crawlEtaSeconds, crawlProgressPercent } from "../lib/score";
 
@@ -51,13 +52,14 @@ const DIFF_KPIS: { filter: PageFilter; tone: "ok" | "info" | "warn" | "danger"; 
 export function SitePlaceholderPage() {
   const { t } = useTranslation();
   const { orgId, siteId } = useParams();
+  const fromAdmin = isAdminPath(useLocation().pathname);
   const [org, setOrg] = useState<Org | null>(null);
   const [site, setSite] = useState<Site | null>(null);
   const [crawl, setCrawl] = useState<CrawlRow | null>(null);
   const [pages, setPages] = useState<PageSnap[]>([]);
   const [diff, setDiff] = useState<CrawlDiff | null>(null);
   const [busy, setBusy] = useState(false);
-  const [lockedBy, setLockedBy] = useState<string | null>(null);
+  const [queued, setQueued] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState<PageFilter>("all");
   const [hint, setHint] = useState<PageFilter | null>(null);
@@ -74,8 +76,9 @@ export function SitePlaceholderPage() {
       setDiff(next.diff ?? null);
       const overview = await listSiteSummaries(runtime);
       const activeId = overview.active?.site_id ?? null;
-      setLockedBy(activeId && activeId !== siteId ? activeId : null);
-      setBusy(next.crawl?.status === "running" || activeId === siteId);
+      const queuedHere = (overview.queue || []).some((q) => q.site_id === siteId);
+      setQueued(queuedHere);
+      setBusy(next.crawl?.status === "running" || activeId === siteId || queuedHere);
     } catch {
       /* runtime still booting */
     }
@@ -100,7 +103,9 @@ export function SitePlaceholderPage() {
   }, [busy, loadSummary]);
 
   async function run() {
-    if (!org || !site || !siteId || lockedBy) return;
+    if (!org || !site || !siteId) return;
+    if (crawl?.status === "running") return;
+    if (org.status === "suspended" && !fromAdmin) return;
     setBusy(true);
     setError(null);
     try {
@@ -111,6 +116,7 @@ export function SitePlaceholderPage() {
         rateLimit: org.defaultRateLimit || 10,
         maxPages: Math.min(site.maxPages || 20000, org.maxPagesPerSite || 20000),
         maxDepth: site.maxDepth || 8,
+        scanEvery: site.scanEvery,
       });
       await loadSummary();
     } catch (e) {
@@ -218,7 +224,11 @@ export function SitePlaceholderPage() {
 
   return (
     <div className="page stack">
-      <BackLink to={`/o/${orgId}`} label={t("nav.sites")} icon={<ArrowLeft size={20} />} />
+      <BackLink
+        to={orgId ? orgHomePath(orgId, fromAdmin) : "/"}
+        label={fromAdmin ? t("admin.sitesOfOrg") : t("nav.sites")}
+        icon={<ArrowLeft size={20} />}
+      />
 
       <div className="card audit-hero">
         {running ? (
@@ -247,18 +257,18 @@ export function SitePlaceholderPage() {
           </p>
           <div className="row" style={{ flexWrap: "wrap", gap: 10 }}>
             <IconBtn
-              label={running ? t("crawl.running") : lockedBy ? t("sites.waiting") : t("crawl.scan")}
+              label={running ? t("crawl.running") : queued ? t("sites.queued") : t("crawl.scan")}
               tone="accent"
               showLabel
-              disabled={running || Boolean(lockedBy) || org?.status === "suspended"}
+              disabled={running || queued || (org?.status === "suspended" && !fromAdmin)}
               onClick={() => void run()}
               icon={<Play size={18} />}
             />
             <IconBtn
-              to={`/o/${orgId}/s/${siteId}/edit`}
+              to={orgId && siteId ? siteEditPath(orgId, siteId, fromAdmin) : undefined}
               label={running ? t("sites.lockedWhileScanning") : t("sites.edit")}
               showLabel
-              disabled={running || org?.status === "suspended"}
+              disabled={running || (org?.status === "suspended" && !fromAdmin)}
               icon={<Pencil size={18} />}
             />
             {pages.length > 0 ? (

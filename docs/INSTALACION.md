@@ -121,9 +121,15 @@ Parar: `docker compose down` (el volumen `runtime-data` se conserva; no borres l
 
 En **Sitios**, pulsa **Escanear** en la tarjeta. El motor pide de verdad esa web: home, `robots.txt`, sitemap (cuenta y URLs) y sigue enlaces internos del mismo host hasta el tope de la org (por defecto 20 000 URLs, varias peticiones en paralelo). Title, H1, meta, canonical, ALT, tiempos y score salen de esas respuestas, no de un stub.
 
-Si el sitio está detrás de Cloudflare, el runtime usa un cliente que suele pasar el challenge; un corte de conexión no tira el escaneo entero. Solo corre **un** crawl a la vez (el resto de botones Escanear se deshabilitan). Un sitio grande (p. ej. ~14 000 URLs) tarda del orden de **decenas de minutos**, no una jornada.
+Si el sitio está detrás de Cloudflare, el runtime usa un cliente que suele pasar el challenge; un corte de conexión no tira el escaneo entero. Solo corre **un** crawl a la vez. Los demás sitios quedan en la **cola** (Sitios): se pueden subir, bajar, sacar o **ejecutar ahora** (corta el que corre y el interrumpido pasa al siguiente puesto). Escanear se apaga si ese sitio ya está en cola. En cada sitio puedes programar escaneo automático (diario, cada 3 días, semanal o mensual); el PC/Docker del runtime tiene que seguir encendido. Un sitio grande (p. ej. ~14 000 URLs) tarda del orden de **decenas de minutos**, no una jornada.
 
 El historial queda en SQLite local. No es Core Web Vitals de laboratorio.
+
+En **Agregar/Editar sitio** está **Escaneo automático**. Si al abrir Sitios ves 404 en `/api/schedule` o 409 al encolar, el motor de 8080 es una versión vieja: `npm run dev` lo detecta y lo reinicia; o para el proceso de 8080 y vuelve a arrancar.
+
+### 1.7 Demostraciones (operador de plataforma)
+
+En `/admin` → **Demostraciones** el operador crea orgs propias (no son un cliente). Ahí registra un `https://` de un prospecto, lo escanea y exporta Excel para la propuesta. Los **Clientes** siguen en la pestaña de organizaciones (cupos y usuarios).
 
 ---
 
@@ -268,7 +274,7 @@ Después de verde en Actions:
 
 1. Login Google en la URL que vas a publicar.
 2. Crear org, agregar un sitio `https://…`, invitar un segundo Gmail y confirmar que **ve el mismo origin**.
-3. `/admin` (con `platformAdmins`) lista la org; restringir un usuario y confirmar que ya no entra.
+3. `/admin` (con `platformAdmins`) lista **Clientes**. En **Demostraciones** crea una org tuya, agrega un `https://` de prospecto, **Escanear** y exporta Excel. Restringir un usuario de un cliente y confirmar que ya no entra.
 4. Abrir la org: Sitios → **Escanear** en un origin. El anillo y la tabla se llenan con URLs reales (títulos distintos por página).
 5. No hay `.env` en el commit (`git status`).
 

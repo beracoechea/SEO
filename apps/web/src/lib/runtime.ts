@@ -37,6 +37,16 @@ export type RuntimeOverview = {
   sites: CrawlRow[];
   history: Record<string, CrawlHistoryPoint[]>;
   active: CrawlRow | null;
+  queue: QueueItem[];
+  schedules: Record<string, { interval: string; next_run_at: string | null }>;
+};
+
+export type QueueItem = {
+  id?: number;
+  site_id: string;
+  reason: string;
+  created_at: string;
+  sort?: number;
 };
 
 export type CrawlDiff = {
@@ -133,6 +143,7 @@ export async function startCrawl(
     rateLimit?: number;
     maxPages?: number;
     maxDepth?: number;
+    scanEvery?: string;
   },
 ) {
   return runtimeFetch(runtimeUrl, `/api/sites/${encodeURIComponent(siteId)}/crawls`, {
@@ -159,5 +170,50 @@ export async function listSiteSummaries(runtimeUrl: string): Promise<RuntimeOver
     sites: (body.sites as CrawlRow[]) ?? [],
     history: (body.history as Record<string, CrawlHistoryPoint[]>) ?? {},
     active: (body.active as CrawlRow | null) ?? null,
+    queue: (body.queue as QueueItem[]) ?? [],
+    schedules: (body.schedules as RuntimeOverview["schedules"]) ?? {},
   };
+}
+
+export async function syncSchedule(
+  runtimeUrl: string,
+  sites: {
+    id: string;
+    origin: string;
+    templateUrls: string[];
+    maxPages: number;
+    maxDepth: number;
+    scanEvery: string;
+  }[],
+  rateLimit: number,
+) {
+  return runtimeFetch(runtimeUrl, "/api/schedule", {
+    method: "PUT",
+    body: JSON.stringify({
+      sites: sites.map((s) => ({
+        id: s.id,
+        origin: s.origin,
+        templateUrls: s.templateUrls,
+        rateLimit,
+        maxPages: s.maxPages,
+        maxDepth: s.maxDepth,
+        scanEvery: s.scanEvery || "off",
+      })),
+    }),
+  });
+}
+
+export async function cancelQueued(runtimeUrl: string, siteId: string) {
+  return runtimeFetch(runtimeUrl, `/api/queue/${encodeURIComponent(siteId)}`, { method: "DELETE" });
+}
+
+export async function reorderQueue(runtimeUrl: string, siteIds: string[]) {
+  return runtimeFetch(runtimeUrl, "/api/queue/reorder", {
+    method: "POST",
+    body: JSON.stringify({ siteIds }),
+  });
+}
+
+export async function runQueuedNow(runtimeUrl: string, siteId: string) {
+  return runtimeFetch(runtimeUrl, `/api/queue/${encodeURIComponent(siteId)}/run-now`, { method: "POST" });
 }

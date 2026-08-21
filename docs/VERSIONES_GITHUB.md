@@ -13,7 +13,7 @@ Hay **dos artefactos**, no uno:
 
 | Artefacto | Dónde corre en producción | Qué contiene |
 |-----------|---------------------------|--------------|
-| Cáscara web (`apps/web`) | Firebase Hosting (HTTPS) | Login Google, orgs, equipo, links de sitios, consola `/admin` |
+| Cáscara web (`apps/web`) | Firebase Hosting (HTTPS) | Login Google, orgs, equipo, links de sitios, consola `/admin` (clientes + demostraciones) |
 | Runtime (`apps/runtime`) | Servidor / PC de cada empresa (LAN) | Crawler, SQLite, historial |
 
 - Publicar la web **no** despliega el crawler en las oficinas.

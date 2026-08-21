@@ -10,6 +10,7 @@ def test_health_ok(monkeypatch):
         assert res.status_code == 200
         body = res.json()
         assert body["ok"] is True
+        assert body["queue"] is True
         assert body["org_id_suffix"] == "abcdef"
         assert "version" in body
 

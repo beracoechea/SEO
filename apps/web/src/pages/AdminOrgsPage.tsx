@@ -25,7 +25,7 @@ export function AdminOrgsPage() {
           }),
         );
         withCounts.sort((a, b) => a.name.localeCompare(b.name));
-        setRows(withCounts);
+        setRows(withCounts.filter((o) => o.kind !== "demo"));
       } catch {
         setError(t("errors.generic"));
       }

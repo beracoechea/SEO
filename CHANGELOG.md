@@ -25,7 +25,11 @@ El versionado sigue [SemVer](https://semver.org/lang/es/).
 - Firestore rules y guía de versiones / producción.
 - Editar y eliminar sitios (origin, plantillas, exclusiones) desde la tarjeta o la ficha. Mientras ese sitio se escanea, editar y eliminar quedan bloqueados.
 - Botón de consulta en el header con la colorimetría de los nodos (gris / verde / rojo / azul).
+- Cola de escaneos visible: reordenar, cancelar y ejecutar ahora (corta el crawl en curso y lo deja el siguiente). El botón Escanear se apaga si el sitio ya está en cola.
+- Escaneo programado por sitio (diario, cada 3 días, semanal o mensual) y cola FIFO en el runtime.
 - Aviso cuando un escaneo se corta a medias (score parcial y cuántas URLs quedaron).
+- Pestaña **Demostraciones** en `/admin` para orgs propias de prospectos (registrar un sitio, escanearlo y compartir el informe).
+- Al cancelar un sitio en cola, el botón se desactiva y muestra carga para evitar doble clic.
 
 ### Changed
 
@@ -41,7 +45,8 @@ El versionado sigue [SemVer](https://semver.org/lang/es/).
 - Caché local de Firestore y reintento breve si el DNS/red corta el canal Listen/Write.
 - El crawl pide varias URLs en paralelo (~8–12/s) para sitios grandes (sitemap de miles de URLs).
 - Sitios detrás de Cloudflare (challenge “Just a moment…”) se piden con un cliente que el WAF suele dejar pasar.
-- Ya no se muestra el banner naranja de “un escaneo a la vez”; el botón Escanear se deshabilita mientras corre uno.
+- Ya no se muestra el banner naranja de “un escaneo a la vez”; si un sitio está ocupado, Escanear en otro lo deja en cola.
+- En desarrollo, si el motor de 8080 no tiene cola, Vite lo reinicia al arrancar `npm run dev`.
 
 ### Fixed
 

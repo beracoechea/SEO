@@ -1,4 +1,4 @@
-import { Building2, LogOut, Users } from "lucide-react";
+import { Building2, LogOut, Presentation, Users } from "lucide-react";
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { Avatar } from "../components/Avatar";
@@ -27,6 +27,10 @@ export function AdminShell() {
         <NavLink to="/admin" end className={({ isActive }) => (isActive ? "tab active" : "tab")}>
           <Building2 size={22} />
           <span>{t("admin.navOrgs")}</span>
+        </NavLink>
+        <NavLink to="/admin/demos" className={({ isActive }) => (isActive ? "tab active" : "tab")}>
+          <Presentation size={22} />
+          <span>{t("admin.navDemos")}</span>
         </NavLink>
         <NavLink to="/admin/users" className={({ isActive }) => (isActive ? "tab active" : "tab")}>
           <Users size={22} />

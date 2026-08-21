@@ -3,6 +3,7 @@ import { useCallback, useEffect, useState, type MouseEvent } from "react";
 import { Link, useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { IconBtn } from "../components/IconBtn";
+import { ScanQueue } from "../components/ScanQueue";
 import { ScoreRing } from "../components/ScoreRing";
 import { TrendNodes } from "../components/TrendNodes";
 import { deleteSite, getOrg, listSites, type Org, type Site } from "../lib/db";
@@ -11,10 +12,27 @@ import {
   listSiteSummaries,
   resolvedRuntimeUrl,
   startCrawl,
+  syncSchedule,
+  cancelQueued,
+  reorderQueue,
+  runQueuedNow,
   type CrawlHistoryPoint,
   type CrawlRow,
+  type QueueItem,
 } from "../lib/runtime";
 import { crawlEtaPhrase, crawlEtaSeconds, crawlProgressPercent } from "../lib/score";
+
+function until(iso: string | null | undefined, t: (k: string, opts?: Record<string, unknown>) => string): string {
+  if (!iso) return "";
+  const ms = new Date(iso).getTime() - Date.now();
+  if (Number.isNaN(ms)) return "";
+  if (ms <= 0) return t("sites.agoNow");
+  const min = Math.round(ms / 60000);
+  if (min < 60) return t("sites.inMin", { n: Math.max(1, min) });
+  const h = Math.round(min / 60);
+  if (h < 48) return t("sites.inHour", { n: h });
+  return t("sites.inDay", { n: Math.max(1, Math.round(h / 24)) });
+}
 
 function ago(iso: string | null | undefined, t: (k: string, opts?: Record<string, unknown>) => string): string {
   if (!iso) return t("sites.never");
@@ -36,6 +54,8 @@ export function OrgHomePage() {
   const [scores, setScores] = useState<Record<string, CrawlRow>>({});
   const [history, setHistory] = useState<Record<string, CrawlHistoryPoint[]>>({});
   const [scanning, setScanning] = useState<string | null>(null);
+  const [queue, setQueue] = useState<QueueItem[]>([]);
+  const [schedules, setSchedules] = useState<Record<string, { interval: string; next_run_at: string | null }>>({});
   const [error, setError] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
 
@@ -49,6 +69,8 @@ export function OrgHomePage() {
       setScores(map);
       setHistory(overview.history);
       setScanning(overview.active?.site_id ?? null);
+      setQueue(overview.queue || []);
+      setSchedules(overview.schedules || {});
     } catch {
       setScores({});
     }
@@ -70,17 +92,40 @@ export function OrgHomePage() {
   }, [org, refreshScores]);
 
   useEffect(() => {
-    if (!scanning) return;
-    const id = window.setInterval(() => void refreshScores(), 1200);
+    if (!org) return;
+    void syncSchedule(
+      runtime,
+      sites.map((s) => ({
+        id: s.id,
+        origin: s.origin,
+        templateUrls: s.templateUrls,
+        maxPages: Math.min(s.maxPages || 20000, org.maxPagesPerSite || 20000),
+        maxDepth: s.maxDepth || 8,
+        scanEvery: s.scanEvery || "off",
+      })),
+      org.defaultRateLimit || 10,
+    )
+      .then(() => refreshScores())
+      .catch(() => {
+        /* runtime still booting */
+      });
+  }, [org, runtime, sites, refreshScores]);
+
+  useEffect(() => {
+    const scheduled = sites.some((s) => s.scanEvery && s.scanEvery !== "off");
+    if (!scanning && queue.length === 0 && !scheduled) return;
+    const ms = scanning || queue.length ? 1200 : 15000;
+    const id = window.setInterval(() => void refreshScores(), ms);
     return () => window.clearInterval(id);
-  }, [scanning, refreshScores]);
+  }, [scanning, queue.length, sites, refreshScores]);
 
   async function scan(site: Site, ev: MouseEvent) {
     ev.preventDefault();
     ev.stopPropagation();
-    if (!org || org.status === "suspended" || scanning) return;
+    if (!org || org.status === "suspended") return;
+    if (scanning === site.id) return;
+    if (queue.some((q) => q.site_id === site.id)) return;
     setError(null);
-    setScanning(site.id);
     try {
       await startCrawl(runtime, site.id, {
         kind: "site",
@@ -89,6 +134,7 @@ export function OrgHomePage() {
         rateLimit: org.defaultRateLimit || 10,
         maxPages: Math.min(site.maxPages || 20000, org.maxPagesPerSite || 20000),
         maxDepth: site.maxDepth || 8,
+        scanEvery: site.scanEvery,
       });
       await refreshScores();
     } catch (e) {
@@ -96,7 +142,6 @@ export function OrgHomePage() {
       if (msg === "crawl.alreadyRunning") await refreshScores();
       else if (msg === "Failed to fetch" || msg.includes("NetworkError")) setError(t("crawl.needRuntime"));
       else setError(t("crawl.failed"));
-      setScanning(null);
     }
   }
 
@@ -159,8 +204,28 @@ export function OrgHomePage() {
               })}
             </span>
             <span className="scan-water-eta">{t(eta.key, { n: eta.n })}</span>
+            {queue.length ? <span className="muted">{t("crawl.queueMore", { n: queue.length })}</span> : null}
           </div>
         </div>
+      ) : null}
+
+      {scanningSite || queue.length ? (
+        <ScanQueue
+          runningName={scanningSite?.name}
+          items={queue}
+          sites={sites}
+          disabled={org?.status === "suspended"}
+          onMove={(ids) => reorderQueue(runtime, ids).then(() => refreshScores()).catch(() => setError(t("crawl.failed")))}
+          onCancel={(id) =>
+            cancelQueued(runtime, id)
+              .then(() => refreshScores())
+              .catch(() => {
+                setError(t("crawl.failed"));
+                throw new Error("queue.cancel");
+              })
+          }
+          onRunNow={(id) => runQueuedNow(runtime, id).then(() => refreshScores()).catch(() => setError(t("crawl.failed")))}
+        />
       ) : null}
 
       {error ? <div className="banner warn">{error}</div> : null}
@@ -172,10 +237,22 @@ export function OrgHomePage() {
             const row = scores[s.id];
             const series = [...(history[s.id] || [])].reverse();
             const busyThis = scanning === s.id || row?.status === "running";
-            const waiting = Boolean(scanning && scanning !== s.id);
+            const queuedThis = queue.some((q) => q.site_id === s.id);
+            const cadence = schedules[s.id]?.interval || s.scanEvery || "off";
+            const nextAt = schedules[s.id]?.next_run_at;
             const pct = busyThis ? crawlProgressPercent(row || { status: "running", pages_crawled: 0 }) : null;
+            const cadenceKey =
+              cadence === "day"
+                ? "sites.scanDay"
+                : cadence === "3days"
+                  ? "sites.scan3days"
+                  : cadence === "week"
+                    ? "sites.scanWeek"
+                    : cadence === "month"
+                      ? "sites.scanMonth"
+                      : "sites.scanOff";
             return (
-              <div key={s.id} className={`site-card${busyThis ? " is-scanning" : ""}${waiting ? " is-waiting" : ""}`}>
+              <div key={s.id} className={`site-card${busyThis ? " is-scanning" : ""}${queuedThis ? " is-waiting" : ""}`}>
                 <Link to={`/o/${orgId}/s/${s.id}`} className="site-card-main">
                   <div className="site-card-head">
                     {busyThis ? (
@@ -205,6 +282,13 @@ export function OrgHomePage() {
                             : t("sites.never")}
                       </span>
                       {row?.finished_at ? <span>· {ago(row.finished_at, t)}</span> : null}
+                      {cadence !== "off" ? (
+                        <span>
+                          · {t(cadenceKey)}
+                          {nextAt ? ` · ${t("sites.scanNext", { when: until(nextAt, t) })}` : null}
+                        </span>
+                      ) : null}
+                      {queuedThis ? <span> · {t("sites.queued")}</span> : null}
                     </div>
                   )}
                   {!busyThis ? (
@@ -229,10 +313,10 @@ export function OrgHomePage() {
                     <>
                       <IconBtn
                         className="site-scan-btn"
-                        label={busyThis ? t("crawl.running") : waiting ? t("sites.waiting") : t("crawl.scan")}
+                        label={busyThis ? t("crawl.running") : queuedThis ? t("sites.queued") : t("crawl.scan")}
                         tone="accent"
                         showLabel
-                        disabled={busyThis || waiting || org?.status === "suspended"}
+                        disabled={busyThis || queuedThis || org?.status === "suspended"}
                         onClick={(e) => void scan(s, e)}
                         icon={<Play size={18} />}
                       />

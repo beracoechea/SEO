@@ -20,6 +20,10 @@ export type MemberAccess = "active" | "revoked";
 export const DEFAULT_MAX_SITES = 5;
 export const DEFAULT_MAX_PAGES_PER_SITE = 20000;
 export const DEFAULT_MAX_MEMBERS = 10;
+export const DEMO_MAX_SITES = 50;
+export const DEMO_MAX_MEMBERS = 5;
+
+export type OrgKind = "client" | "demo";
 
 export type Org = {
   id: string;
@@ -31,7 +35,10 @@ export type Org = {
   maxSites: number;
   maxPagesPerSite: number;
   maxMembers: number;
+  kind: OrgKind;
 };
+
+export type ScanEvery = "off" | "day" | "3days" | "week" | "month";
 
 export type Site = {
   id: string;
@@ -43,6 +50,7 @@ export type Site = {
   includePatterns: string[];
   excludePatterns: string[];
   templateUrls: string[];
+  scanEvery: ScanEvery;
 };
 
 export type Member = {
@@ -93,6 +101,7 @@ function orgFromData(id: string, d: Record<string, unknown>): Org {
     maxSites: (d.maxSites as number) ?? DEFAULT_MAX_SITES,
     maxPagesPerSite: (d.maxPagesPerSite as number) ?? DEFAULT_MAX_PAGES_PER_SITE,
     maxMembers: (d.maxMembers as number) ?? DEFAULT_MAX_MEMBERS,
+    kind: d.kind === "demo" ? "demo" : "client",
   };
 }
 
@@ -134,18 +143,25 @@ export async function listMyOrgs(uid: string): Promise<Org[]> {
   return orgs;
 }
 
-export async function createOrg(uid: string, email: string, name: string): Promise<string> {
+export async function createOrg(
+  uid: string,
+  email: string,
+  name: string,
+  opts?: { kind?: OrgKind },
+): Promise<string> {
   const orgRef = doc(collection(db(), "orgs"));
   const trimmed = name.trim();
+  const kind: OrgKind = opts?.kind === "demo" ? "demo" : "client";
   await setDoc(orgRef, {
     name: trimmed,
     createdByUid: uid,
     runtimeBaseUrl: null,
     defaultRateLimit: 10,
     status: "active",
-    maxSites: DEFAULT_MAX_SITES,
+    kind,
+    maxSites: kind === "demo" ? DEMO_MAX_SITES : DEFAULT_MAX_SITES,
     maxPagesPerSite: DEFAULT_MAX_PAGES_PER_SITE,
-    maxMembers: DEFAULT_MAX_MEMBERS,
+    maxMembers: kind === "demo" ? DEMO_MAX_MEMBERS : DEFAULT_MAX_MEMBERS,
     createdAt: serverTimestamp(),
   });
   await setDoc(doc(db(), "orgs", orgRef.id, "members", uid), {
@@ -197,6 +213,9 @@ function siteFromData(id: string, d: Record<string, unknown>): Site {
     includePatterns: (d.includePatterns as string[]) ?? [],
     excludePatterns: (d.excludePatterns as string[]) ?? [],
     templateUrls: (d.templateUrls as string[]) ?? [],
+    scanEvery: (["off", "day", "3days", "week", "month"].includes(d.scanEvery as string)
+      ? (d.scanEvery as Site["scanEvery"])
+      : "off"),
   };
 }
 
@@ -220,16 +239,19 @@ export async function createSite(
     maxDepth: number;
     excludePatterns: string[];
     templateUrls: string[];
+    scanEvery?: Site["scanEvery"];
   },
+  opts?: { asPlatformAdmin?: boolean },
 ) {
   const org = await getOrg(orgId);
   if (!org) throw new Error("org-missing");
-  if (org.status === "suspended") throw new Error("org-suspended");
+  if (org.status === "suspended" && !opts?.asPlatformAdmin) throw new Error("org-suspended");
   const sites = await listSites(orgId);
   if (sites.length >= org.maxSites) throw new Error("sites-quota");
   const maxPages = Math.min(input.maxPages, org.maxPagesPerSite);
   await addDoc(collection(db(), "orgs", orgId, "sites"), {
     ...input,
+    scanEvery: input.scanEvery || "off",
     maxPages,
     active: true,
     includePatterns: [],
@@ -247,11 +269,13 @@ export async function updateSite(
     maxDepth: number;
     excludePatterns: string[];
     templateUrls: string[];
+    scanEvery?: Site["scanEvery"];
   },
+  opts?: { asPlatformAdmin?: boolean },
 ) {
   const org = await getOrg(orgId);
   if (!org) throw new Error("org-missing");
-  if (org.status === "suspended") throw new Error("org-suspended");
+  if (org.status === "suspended" && !opts?.asPlatformAdmin) throw new Error("org-suspended");
   const maxPages = Math.min(input.maxPages, org.maxPagesPerSite);
   await updateDoc(doc(db(), "orgs", orgId, "sites", siteId), {
     name: input.name,
@@ -260,14 +284,15 @@ export async function updateSite(
     maxDepth: input.maxDepth,
     excludePatterns: input.excludePatterns,
     templateUrls: input.templateUrls,
+    scanEvery: input.scanEvery || "off",
     updatedAt: serverTimestamp(),
   });
 }
 
-export async function deleteSite(orgId: string, siteId: string) {
+export async function deleteSite(orgId: string, siteId: string, opts?: { asPlatformAdmin?: boolean }) {
   const org = await getOrg(orgId);
   if (!org) throw new Error("org-missing");
-  if (org.status === "suspended") throw new Error("org-suspended");
+  if (org.status === "suspended" && !opts?.asPlatformAdmin) throw new Error("org-suspended");
   await deleteDoc(doc(db(), "orgs", orgId, "sites", siteId));
 }
 

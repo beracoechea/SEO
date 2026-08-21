@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import os
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
@@ -7,23 +8,103 @@ from pathlib import Path
 from uuid import uuid4
 
 from dotenv import load_dotenv
-from fastapi import BackgroundTasks, Depends, FastAPI, Header, HTTPException
+from fastapi import Depends, FastAPI, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
 from app import __version__
-from app.crawler import run_crawl
+from app import schedule as sched
+from app.crawler import clear_cancel, crawl_cancelled, request_cancel, run_crawl
 from app.db import connect, init_db
 from app.indexation import diff_rows, url_key
 from app.parse import assert_public_http_url
 
 load_dotenv(Path(__file__).resolve().parents[1] / ".env")
 
+_job_lock = asyncio.Lock()
+
+
+async def _run_job(**kwargs) -> None:
+    crawl_id = str(kwargs.get("crawl_id") or "")
+    site_id = str(kwargs.get("site_id") or "")
+    try:
+        await run_crawl(**kwargs)
+    except Exception:
+        pass
+    finally:
+        interrupted = crawl_cancelled(crawl_id)
+        clear_cancel(crawl_id)
+        if not interrupted:
+            sched.bump_next_run(site_id)
+        await pump_queue()
+
+
+async def pump_queue() -> None:
+    async with _job_lock:
+        if os.getenv("CRAWL_NO_DELAY") == "1":
+            return
+        nxt = sched.pop_next()
+        if not nxt:
+            return
+        _spawn_crawl(
+            site_id=nxt["site_id"],
+            kind="site",
+            origin=nxt["origin"],
+            template_urls=nxt["template_urls"],
+            one_url=None,
+            rate=float(nxt["rate"] or 10),
+            max_pages=int(nxt["max_pages"] or 20000),
+            max_depth=int(nxt["max_depth"] or 8),
+        )
+
+
+def _spawn_crawl(**kwargs) -> dict:
+    crawl_id = kwargs.get("crawl_id") or str(uuid4())
+    kwargs["crawl_id"] = crawl_id
+    con = connect()
+    try:
+        con.execute(
+            "INSERT INTO crawls(id, site_id, kind, status, started_at, max_pages) VALUES (?,?,?,?,?,?)",
+            (
+                crawl_id,
+                kwargs["site_id"],
+                kwargs["kind"],
+                "running",
+                datetime.now(timezone.utc).isoformat(),
+                min(50000, max(1, int(kwargs.get("max_pages") or 20000))),
+            ),
+        )
+        con.commit()
+    finally:
+        con.close()
+    if os.getenv("CRAWL_NO_DELAY") == "1":
+        # tests await the crawl inline
+        return {"id": crawl_id, "mode": "sync", "kwargs": kwargs}
+    asyncio.create_task(_run_job(**kwargs))
+    return {"id": crawl_id, "status": "running"}
+
+
+async def _scheduler_loop() -> None:
+    while True:
+        try:
+            sched.enqueue_due()
+            await pump_queue()
+        except Exception:
+            pass
+        await asyncio.sleep(20)
+
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
     init_db()
-    yield
+    task = None
+    if os.getenv("CRAWL_NO_DELAY") != "1":
+        task = asyncio.create_task(_scheduler_loop())
+    try:
+        yield
+    finally:
+        if task:
+            task.cancel()
 
 
 app = FastAPI(title="SEO runtime", version=__version__, lifespan=lifespan)
@@ -73,13 +154,32 @@ class CrawlIn(BaseModel):
     rateLimit: float = 10
     maxPages: int = 20000
     maxDepth: int = 8
+    scanEvery: str | None = None
+
+
+class ScheduleSiteIn(BaseModel):
+    id: str
+    origin: str
+    templateUrls: list[str] = []
+    rateLimit: float = 10
+    maxPages: int = 20000
+    maxDepth: int = 8
+    scanEvery: str = "off"
+
+
+class ScheduleIn(BaseModel):
+    sites: list[ScheduleSiteIn] = []
+
+
+class QueueReorderIn(BaseModel):
+    siteIds: list[str] = []
 
 
 @app.get("/api/health")
 def health() -> dict[str, str | bool]:
     org = os.getenv("ORG_ID", "")
     suffix = org[-6:] if len(org) >= 6 else org
-    return {"ok": True, "version": __version__, "org_id_suffix": suffix}
+    return {"ok": True, "version": __version__, "org_id_suffix": suffix, "queue": True}
 
 
 @app.get("/api/me")
@@ -87,64 +187,100 @@ def me(user: dict = Depends(require_user)) -> dict:
     return {"ok": True, **user}
 
 
-async def _run_job(**kwargs) -> None:
+@app.put("/api/schedule")
+def put_schedule(body: ScheduleIn, user: dict = Depends(require_user)) -> dict:
     try:
-        await run_crawl(**kwargs)
-    except Exception:
-        pass
+        sched.replace_sites([s.model_dump() for s in body.sites])
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    snap = sched.snapshot()
+    return {"ok": True, **snap, "uid": user.get("uid")}
+
+
+@app.delete("/api/queue/{site_id}")
+def cancel_queued(site_id: str, user: dict = Depends(require_user)) -> dict:
+    if not sched.dequeue(site_id):
+        raise HTTPException(status_code=404, detail="queue.missing")
+    snap = sched.snapshot()
+    return {"ok": True, **snap, "uid": user.get("uid")}
+
+
+@app.post("/api/queue/reorder")
+def reorder_queue(body: QueueReorderIn, user: dict = Depends(require_user)) -> dict:
+    sched.reorder(body.siteIds)
+    snap = sched.snapshot()
+    return {"ok": True, **snap, "uid": user.get("uid")}
+
+
+@app.post("/api/queue/{site_id}/run-now")
+async def run_queued_now(site_id: str, user: dict = Depends(require_user)) -> dict:
+    if site_id not in sched.queued_ids():
+        raise HTTPException(status_code=404, detail="queue.missing")
+    current = sched.running_crawl()
+    if current:
+        request_cancel(current["id"])
+        sched.preempt(site_id, current["site_id"])
+    else:
+        sched.reorder([site_id])
+        await pump_queue()
+    snap = sched.snapshot()
+    return {"ok": True, **snap, "uid": user.get("uid")}
 
 
 @app.post("/api/sites/{site_id}/crawls")
 async def create_crawl(
     site_id: str,
     body: CrawlIn,
-    background_tasks: BackgroundTasks,
     user: dict = Depends(require_user),
 ) -> dict:
-    con = connect()
-    try:
-        row = con.execute(
-            "SELECT id, site_id FROM crawls WHERE status='running' LIMIT 1",
-        ).fetchone()
-    finally:
-        con.close()
-    if row:
-        raise HTTPException(status_code=409, detail="crawl.alreadyRunning")
     try:
         assert_public_http_url(body.origin.rstrip("/") + "/")
         if body.kind == "url" and body.url:
             assert_public_http_url(body.url)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-    crawl_id = str(uuid4())
-    con = connect()
     try:
-        con.execute(
-            "INSERT INTO crawls(id, site_id, kind, status, started_at, max_pages) VALUES (?,?,?,?,?,?)",
-            (crawl_id, site_id, body.kind, "running", datetime.now(timezone.utc).isoformat(), min(50000, max(1, body.maxPages))),
+        sched.remember_site(
+            site_id,
+            origin=body.origin,
+            template_urls=body.templateUrls,
+            rate=body.rateLimit,
+            max_pages=body.maxPages,
+            max_depth=body.maxDepth,
+            interval=body.scanEvery,
         )
-        con.commit()
-    finally:
-        con.close()
-    kwargs = {
-        "site_id": site_id,
-        "kind": body.kind,
-        "origin": body.origin,
-        "template_urls": body.templateUrls,
-        "one_url": body.url,
-        "rate": body.rateLimit,
-        "max_pages": body.maxPages,
-        "max_depth": body.maxDepth,
-        "crawl_id": crawl_id,
-    }
-    try:
-        if os.getenv("CRAWL_NO_DELAY") == "1":
-            result = await run_crawl(**kwargs)
-            return {"ok": True, "crawl": result, "uid": user.get("uid")}
-        background_tasks.add_task(_run_job, **kwargs)
-        return {"ok": True, "crawl": {"id": crawl_id, "status": "running"}, "uid": user.get("uid")}
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+    busy = sched.running_site()
+    if busy:
+        already_queued = site_id in sched.queued_ids()
+        queued = already_queued or (busy != site_id and sched.enqueue(site_id, "manual"))
+        snap = sched.snapshot()
+        return {
+            "ok": True,
+            "queued": queued,
+            "crawl": {"id": None, "status": "queued" if queued else "running"},
+            "queue": snap["queue"],
+            "uid": user.get("uid"),
+        }
+    launched = _spawn_crawl(
+        site_id=site_id,
+        kind=body.kind,
+        origin=body.origin,
+        template_urls=body.templateUrls,
+        one_url=body.url,
+        rate=body.rateLimit,
+        max_pages=body.maxPages,
+        max_depth=body.maxDepth,
+    )
+    if launched.get("mode") == "sync":
+        try:
+            result = await run_crawl(**launched["kwargs"])
+            sched.bump_next_run(site_id)
+            return {"ok": True, "queued": False, "crawl": result, "uid": user.get("uid")}
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {"ok": True, "queued": False, "crawl": {"id": launched["id"], "status": "running"}, "uid": user.get("uid")}
 
 
 @app.get("/api/sites/{site_id}/summary")
@@ -219,11 +355,14 @@ def list_summaries(user: dict = Depends(require_user)) -> dict:
                 continue
             bucket.append(dict(h))
         active = con.execute("SELECT * FROM crawls WHERE status='running' LIMIT 1").fetchone()
+        snap = sched.snapshot()
         return {
             "ok": True,
             "sites": [dict(r) for r in rows],
             "history": history,
             "active": dict(active) if active else None,
+            "queue": snap["queue"],
+            "schedules": snap["schedules"],
         }
     finally:
         con.close()

@@ -1,5 +1,6 @@
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { AuthProvider } from "./context/AuthContext";
+import { AdminDemosPage } from "./pages/AdminDemosPage";
 import { AdminGuard } from "./pages/AdminGuard";
 import { AdminOrgDetailPage } from "./pages/AdminOrgDetailPage";
 import { AdminOrgsPage } from "./pages/AdminOrgsPage";
@@ -31,8 +32,12 @@ export default function App() {
               }
             >
               <Route index element={<AdminOrgsPage />} />
+              <Route path="demos" element={<AdminDemosPage />} />
               <Route path="users" element={<AdminUsersPage />} />
               <Route path="o/:orgId" element={<AdminOrgDetailPage />} />
+              <Route path="o/:orgId/sites/new" element={<NewSitePage />} />
+              <Route path="o/:orgId/s/:siteId/edit" element={<NewSitePage />} />
+              <Route path="o/:orgId/s/:siteId" element={<SitePlaceholderPage />} />
             </Route>
             <Route path="/o/:orgId" element={<Shell />}>
               <Route index element={<OrgHomePage />} />

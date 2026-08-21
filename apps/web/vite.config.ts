@@ -1,4 +1,4 @@
-import { spawn, type ChildProcess } from "node:child_process";
+import { execFileSync, spawn, type ChildProcess } from "node:child_process";
 import { existsSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -20,6 +20,40 @@ const KEYS = [
   "VITE_RUNTIME_URL",
 ] as const;
 
+function pidOnPort(port: number): string | null {
+  try {
+    if (process.platform === "win32") {
+      const out = execFileSync("netstat", ["-ano"], { encoding: "utf8" });
+      const hit = out.split(/\r?\n/).find((line) => line.includes(`:${port} `) && line.includes("LISTENING"));
+      const pid = hit?.trim().split(/\s+/).pop();
+      return pid && pid !== "0" ? pid : null;
+    }
+    const out = execFileSync("lsof", ["-ti", `tcp:${port}`], { encoding: "utf8" });
+    return out.trim().split(/\s+/)[0] || null;
+  } catch {
+    return null;
+  }
+}
+
+function stopPid(pid: string) {
+  try {
+    if (process.platform === "win32") execFileSync("taskkill", ["/F", "/PID", pid, "/T"], { stdio: "ignore" });
+    else execFileSync("kill", ["-9", pid], { stdio: "ignore" });
+  } catch {
+    /* already gone */
+  }
+}
+
+async function runtimeHealth(): Promise<{ ok: boolean; queue?: boolean }> {
+  try {
+    const res = await fetch("http://127.0.0.1:8080/api/health");
+    if (!res.ok) return { ok: false };
+    return (await res.json()) as { ok: boolean; queue?: boolean };
+  } catch {
+    return { ok: false };
+  }
+}
+
 function runtimeDevPlugin(): Plugin {
   let child: ChildProcess | undefined;
   return {
@@ -30,11 +64,15 @@ function runtimeDevPlugin(): Plugin {
       const venvPyNix = path.join(runtimeDir, ".venv", "bin", "python");
       const python = existsSync(venvPy) ? venvPy : existsSync(venvPyNix) ? venvPyNix : "python";
       const start = async () => {
-        try {
-          const res = await fetch("http://127.0.0.1:8080/api/health");
-          if (res.ok) return;
-        } catch {
-          /* not up yet */
+        const health = await runtimeHealth();
+        if (health.ok && health.queue) return;
+        if (health.ok && !health.queue) {
+          const pid = pidOnPort(8080);
+          if (pid) {
+            console.warn("[runtime] motor sin cola; se reinicia para cargar el código nuevo");
+            stopPid(pid);
+            await new Promise((r) => setTimeout(r, 800));
+          }
         }
         child = spawn(python, ["-m", "uvicorn", "app.main:app", "--host", "127.0.0.1", "--port", "8080"], {
           cwd: runtimeDir,

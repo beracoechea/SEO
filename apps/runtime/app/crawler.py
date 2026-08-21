@@ -44,6 +44,22 @@ WORKERS = 24
 RATE_CAP = 12.0
 TRANSIENT_HTTP = {0, 429, 500, 502, 503, 504, 520, 521, 522, 523, 524}
 
+_cancel_ids: set[str] = set()
+
+
+def request_cancel(crawl_id: str) -> None:
+    if crawl_id:
+        _cancel_ids.add(crawl_id)
+
+
+def crawl_cancelled(crawl_id: str | None) -> bool:
+    return bool(crawl_id and crawl_id in _cancel_ids)
+
+
+def clear_cancel(crawl_id: str | None) -> None:
+    if crawl_id:
+        _cancel_ids.discard(crawl_id)
+
 
 class _NoRedirect(urllib.request.HTTPRedirectHandler):
     def redirect_request(self, req, fp, code, msg, headers, newurl):  # noqa: ANN001
@@ -685,6 +701,8 @@ async def run_crawl(
 
             async def visit(url: str, depth: int) -> None:
                 nonlocal crawled
+                if crawl_cancelled(crawl_id):
+                    return
                 await limiter.acquire()
                 try:
                     fetch = await _get(client, url)
@@ -720,6 +738,8 @@ async def run_crawl(
             async def worker() -> None:
                 nonlocal in_flight
                 while True:
+                    if crawl_cancelled(crawl_id):
+                        return
                     item: tuple[str, int] | None = None
                     async with lock:
                         if crawled >= cap:
@@ -741,8 +761,18 @@ async def run_crawl(
             await asyncio.gather(*(worker() for _ in range(workers_n)))
 
         found = max(sitemap_count, len(snaps), len(sitemap_set))
-        _finalize_indexation(con, crawl_id, sitemap_set, link_set, seed_set, blocked_sitemap)
-        _progress(con, crawl_id, snaps, buckets, counts, sitemap_count, titles, cap, True, times, found)
+        interrupted = crawl_cancelled(crawl_id)
+        if interrupted:
+            _progress(con, crawl_id, snaps, buckets, counts, sitemap_count, titles, cap, False, times, found)
+            con.execute(
+                "UPDATE crawls SET status=?, error=?, finished_at=? WHERE id=?",
+                ("failed", "crawl.interrupted", _now(), crawl_id),
+            )
+            con.commit()
+        else:
+            _finalize_indexation(con, crawl_id, sitemap_set, link_set, seed_set, blocked_sitemap)
+            _progress(con, crawl_id, snaps, buckets, counts, sitemap_count, titles, cap, True, times, found)
+        clear_cancel(crawl_id)
     except Exception as exc:
         con.execute(
             "UPDATE crawls SET status=?, error=?, finished_at=? WHERE id=?",

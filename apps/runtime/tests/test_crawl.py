@@ -322,7 +322,10 @@ def test_one_crawl_at_a_time(tmp_path, monkeypatch):
             "/api/sites/site-b/crawls",
             json={"kind": "site", "origin": "https://www.example.com"},
         )
-        assert res.status_code == 409
+        assert res.status_code == 200, res.text
+        body = res.json()
+        assert body["queued"] is True
+        assert body["crawl"]["status"] == "queued"
     monkeypatch.setenv("ALLOW_ANON", "0")
     with TestClient(app) as client:
         res = client.post(
