@@ -1,10 +1,12 @@
-import { ArrowLeft, Save } from "lucide-react";
-import { useState } from "react";
+import { ArrowLeft, Save, Trash2 } from "lucide-react";
+import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { BackLink } from "../components/BackLink";
 import { IconBtn } from "../components/IconBtn";
-import { createSite, isPrivateOrigin } from "../lib/db";
+import { createSite, deleteSite, getOrg, getSite, isPrivateOrigin, updateSite } from "../lib/db";
+import { isFirestoreNetworkError } from "../lib/firebase";
+import { listSiteSummaries, resolvedRuntimeUrl } from "../lib/runtime";
 
 function lines(text: string): string[] {
   return text
@@ -15,8 +17,9 @@ function lines(text: string): string[] {
 
 export function NewSitePage() {
   const { t } = useTranslation();
-  const { orgId } = useParams();
+  const { orgId, siteId } = useParams();
   const navigate = useNavigate();
+  const editing = Boolean(siteId);
   const [name, setName] = useState("");
   const [origin, setOrigin] = useState("https://");
   const [maxPages, setMaxPages] = useState(20000);
@@ -25,9 +28,58 @@ export function NewSitePage() {
   const [templates, setTemplates] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [scanning, setScanning] = useState(false);
+
+  useEffect(() => {
+    if (!orgId || !siteId) return;
+    void getSite(orgId, siteId)
+      .then((site) => {
+        if (!site) {
+          setError(t("errors.generic"));
+          return;
+        }
+        setName(site.name);
+        setOrigin(site.origin);
+        setMaxPages(site.maxPages);
+        setMaxDepth(site.maxDepth);
+        setExclude(site.excludePatterns.join("\n"));
+        setTemplates(site.templateUrls.join("\n"));
+      })
+      .catch((e) => setError(isFirestoreNetworkError(e) ? t("errors.firestoreNetwork") : t("errors.generic")));
+  }, [orgId, siteId, t]);
+
+  useEffect(() => {
+    if (!orgId || !siteId) return;
+    let cancelled = false;
+    let timer: number | undefined;
+    const tick = async () => {
+      try {
+        const org = await getOrg(orgId);
+        const overview = await listSiteSummaries(resolvedRuntimeUrl(org?.runtimeBaseUrl));
+        if (cancelled) return;
+        const active =
+          overview.active?.site_id === siteId ||
+          overview.sites.some((row) => row.site_id === siteId && row.status === "running");
+        setScanning(active);
+        if (active) timer = window.setTimeout(() => void tick(), 1500);
+      } catch {
+        if (!cancelled) setScanning(false);
+      }
+    };
+    void tick();
+    return () => {
+      cancelled = true;
+      if (timer) window.clearTimeout(timer);
+    };
+  }, [orgId, siteId]);
 
   async function onSave() {
     if (!orgId) return;
+    if (scanning) {
+      setError(t("sites.lockedWhileScanning"));
+      return;
+    }
     setError(null);
     if (!origin.startsWith("https://")) {
       setError(t("sites.originInvalid"));
@@ -37,34 +89,58 @@ export function NewSitePage() {
       setError(t("sites.originForbidden"));
       return;
     }
-    const templateUrls = lines(templates).slice(0, 100);
+    const payload = {
+      name: name.trim(),
+      origin: origin.replace(/\/$/, ""),
+      maxPages,
+      maxDepth,
+      excludePatterns: lines(exclude),
+      templateUrls: lines(templates).slice(0, 100),
+    };
     setBusy(true);
     try {
-      await createSite(orgId, {
-        name: name.trim(),
-        origin: origin.replace(/\/$/, ""),
-        maxPages,
-        maxDepth,
-        excludePatterns: lines(exclude),
-        templateUrls,
-      });
+      if (siteId) await updateSite(orgId, siteId, payload);
+      else await createSite(orgId, payload);
       navigate(`/o/${orgId}`);
     } catch (e) {
       const msg = e instanceof Error ? e.message : "";
       if (msg === "sites-quota") setError(t("sites.quotaReached"));
       else if (msg === "org-suspended") setError(t("org.suspended"));
+      else if (isFirestoreNetworkError(e)) setError(t("errors.firestoreNetwork"));
       else setError(t("errors.generic"));
     } finally {
       setBusy(false);
     }
   }
 
+  async function onDelete() {
+    if (!orgId || !siteId) return;
+    if (scanning) {
+      setError(t("sites.lockedWhileScanning"));
+      setConfirmDelete(false);
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    try {
+      await deleteSite(orgId, siteId);
+      navigate(`/o/${orgId}`);
+    } catch (e) {
+      if (e instanceof Error && e.message === "org-suspended") setError(t("org.suspended"));
+      else if (isFirestoreNetworkError(e)) setError(t("errors.firestoreNetwork"));
+      else setError(t("errors.generic"));
+      setBusy(false);
+    }
+  }
+
   return (
     <div className="page stack">
-      <BackLink to={`/o/${orgId}`} label={t("nav.sites")} icon={<ArrowLeft size={20} />} />
-      <h1>{t("sites.add")}</h1>
+      <BackLink to={editing ? `/o/${orgId}/s/${siteId}` : `/o/${orgId}`} label={editing ? t("audit.title") : t("nav.sites")} icon={<ArrowLeft size={20} />} />
+      <h1>{editing ? t("sites.edit") : t("sites.add")}</h1>
+      {scanning ? <div className="banner warn">{t("sites.lockedWhileScanning")}</div> : null}
       {error ? <div className="banner warn">{error}</div> : null}
       <div className="card stack">
+        <fieldset className="stack" disabled={scanning} style={{ border: 0, margin: 0, padding: 0, minWidth: 0 }}>
         <label>
           {t("sites.name")}
           <input value={name} onChange={(e) => setName(e.target.value)} />
@@ -73,6 +149,7 @@ export function NewSitePage() {
           {t("sites.origin")}
           <input value={origin} onChange={(e) => setOrigin(e.target.value)} />
         </label>
+        {editing ? <p className="muted">{t("sites.originChangeHint")}</p> : null}
         <label>
           {t("sites.maxPages")}
           <input type="number" min={1} value={maxPages} onChange={(e) => setMaxPages(Number(e.target.value))} />
@@ -89,17 +166,46 @@ export function NewSitePage() {
           {t("sites.templates")}
           <textarea rows={4} value={templates} onChange={(e) => setTemplates(e.target.value)} />
         </label>
-        <div className="row">
+        <div className="row" style={{ flexWrap: "wrap", gap: 10 }}>
           <IconBtn
             label={t("sites.save")}
             tone="accent"
             showLabel
-            disabled={busy || name.trim().length < 2}
+            disabled={busy || scanning || name.trim().length < 2}
             onClick={() => void onSave()}
             icon={<Save size={18} />}
           />
         </div>
+        </fieldset>
       </div>
+      {editing ? (
+        <div className="card stack">
+          <strong>{t("sites.delete")}</strong>
+          <p className="muted">{scanning ? t("sites.lockedWhileScanning") : t("sites.deleteHint")}</p>
+          {confirmDelete && !scanning ? (
+            <div className="row" style={{ flexWrap: "wrap", gap: 10 }}>
+              <IconBtn
+                label={t("sites.deleteYes")}
+                tone="danger"
+                showLabel
+                disabled={busy}
+                onClick={() => void onDelete()}
+                icon={<Trash2 size={18} />}
+              />
+              <IconBtn label={t("sites.deleteNo")} showLabel disabled={busy} onClick={() => setConfirmDelete(false)} icon={<ArrowLeft size={18} />} />
+            </div>
+          ) : (
+            <IconBtn
+              label={t("sites.delete")}
+              tone="danger"
+              showLabel
+              disabled={busy || scanning}
+              onClick={() => setConfirmDelete(true)}
+              icon={<Trash2 size={18} />}
+            />
+          )}
+        </div>
+      ) : null}
     </div>
   );
 }

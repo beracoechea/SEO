@@ -1,4 +1,4 @@
-import { ArrowLeft, Download, Play } from "lucide-react";
+import { ArrowLeft, Download, Pencil, Play } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
@@ -246,6 +246,13 @@ export function SitePlaceholderPage() {
               disabled={running || Boolean(lockedBy) || org?.status === "suspended"}
               onClick={() => void run()}
               icon={<Play size={18} />}
+            />
+            <IconBtn
+              to={`/o/${orgId}/s/${siteId}/edit`}
+              label={running ? t("sites.lockedWhileScanning") : t("sites.edit")}
+              showLabel
+              disabled={running || org?.status === "suspended"}
+              icon={<Pencil size={18} />}
             />
             {pages.length > 0 ? (
               <IconBtn

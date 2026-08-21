@@ -4,9 +4,11 @@ import { useEffect, useState } from "react";
 import { LayoutGrid, LogOut, Shield, Users } from "lucide-react";
 import { Avatar } from "../components/Avatar";
 import { LangSwitch } from "../components/LangSwitch";
+import { HelpLegend } from "../components/HelpLegend";
 import { IconBtn } from "../components/IconBtn";
 import { useAuth } from "../context/AuthContext";
 import { getOrg, listMyOrgs, pingRuntime, type Org } from "../lib/db";
+import { isFirestoreNetworkError } from "../lib/firebase";
 import { resolvedRuntimeUrl } from "../lib/runtime";
 
 export function Shell() {
@@ -17,6 +19,7 @@ export function Shell() {
   const [runtimeUp, setRuntimeUp] = useState<boolean | null>(null);
   const [orgs, setOrgs] = useState<{ id: string; name: string }[]>([]);
   const [org, setOrg] = useState<Org | null>(null);
+  const [firestoreDown, setFirestoreDown] = useState(false);
 
   useEffect(() => {
     if (!orgId) return;
@@ -48,7 +51,14 @@ export function Shell() {
 
   useEffect(() => {
     if (!user) return;
-    void listMyOrgs(user.uid).then((list) => setOrgs(list.map((o) => ({ id: o.id, name: o.name }))));
+    void listMyOrgs(user.uid)
+      .then((list) => {
+        setOrgs(list.map((o) => ({ id: o.id, name: o.name })));
+        setFirestoreDown(false);
+      })
+      .catch((e) => {
+        if (isFirestoreNetworkError(e)) setFirestoreDown(true);
+      });
   }, [user]);
 
   return (
@@ -68,6 +78,7 @@ export function Shell() {
           ))}
         </select>
         <LangSwitch />
+        <HelpLegend />
         {platformAdmin ? (
           <IconBtn to="/admin" label={t("nav.admin")} tone="sky" icon={<Shield size={20} />} />
         ) : null}
@@ -77,6 +88,11 @@ export function Shell() {
       {org?.status === "suspended" ? (
         <div className="app-alerts">
           <div className="banner warn">{t("org.suspended")}</div>
+        </div>
+      ) : null}
+      {firestoreDown ? (
+        <div className="app-alerts">
+          <div className="banner warn">{t("errors.firestoreNetwork")}</div>
         </div>
       ) : null}
       {runtimeUp === false ? (

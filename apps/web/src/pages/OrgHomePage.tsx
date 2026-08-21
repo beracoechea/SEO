@@ -1,11 +1,12 @@
-import { Play, Plus } from "lucide-react";
+import { Pencil, Play, Plus, Trash2, X } from "lucide-react";
 import { useCallback, useEffect, useState, type MouseEvent } from "react";
 import { Link, useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { IconBtn } from "../components/IconBtn";
 import { ScoreRing } from "../components/ScoreRing";
 import { TrendNodes } from "../components/TrendNodes";
-import { getOrg, listSites, type Org, type Site } from "../lib/db";
+import { deleteSite, getOrg, listSites, type Org, type Site } from "../lib/db";
+import { isFirestoreNetworkError } from "../lib/firebase";
 import {
   listSiteSummaries,
   resolvedRuntimeUrl,
@@ -36,6 +37,7 @@ export function OrgHomePage() {
   const [history, setHistory] = useState<Record<string, CrawlHistoryPoint[]>>({});
   const [scanning, setScanning] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
 
   const runtime = resolvedRuntimeUrl(org?.runtimeBaseUrl);
 
@@ -59,7 +61,7 @@ export function OrgHomePage() {
         setSites(list);
         setOrg(nextOrg);
       })
-      .catch(() => setError(t("errors.generic")));
+      .catch((e) => setError(isFirestoreNetworkError(e) ? t("errors.firestoreNetwork") : t("errors.generic")));
   }, [orgId, t]);
 
   useEffect(() => {
@@ -95,6 +97,26 @@ export function OrgHomePage() {
       else if (msg === "Failed to fetch" || msg.includes("NetworkError")) setError(t("crawl.needRuntime"));
       else setError(t("crawl.failed"));
       setScanning(null);
+    }
+  }
+
+  async function remove(site: Site, ev: MouseEvent) {
+    ev.preventDefault();
+    ev.stopPropagation();
+    if (!orgId || org?.status === "suspended" || scanning === site.id) return;
+    if (confirmDelete !== site.id) {
+      setConfirmDelete(site.id);
+      return;
+    }
+    setError(null);
+    try {
+      await deleteSite(orgId, site.id);
+      setSites((list) => list.filter((s) => s.id !== site.id));
+      setConfirmDelete(null);
+    } catch (e) {
+      if (e instanceof Error && e.message === "org-suspended") setError(t("org.suspended"));
+      else if (isFirestoreNetworkError(e)) setError(t("errors.firestoreNetwork"));
+      else setError(t("errors.generic"));
     }
   }
 
@@ -185,14 +207,45 @@ export function OrgHomePage() {
                   ) : null}
                 </Link>
                 <div className="site-card-actions">
-                  <IconBtn
-                    label={busyThis ? t("crawl.running") : waiting ? t("sites.waiting") : t("crawl.scan")}
-                    tone="accent"
-                    showLabel
-                    disabled={busyThis || waiting || org?.status === "suspended"}
-                    onClick={(e) => void scan(s, e)}
-                    icon={<Play size={18} />}
-                  />
+                  {confirmDelete === s.id && !busyThis ? (
+                    <>
+                      <IconBtn
+                        className="site-scan-btn"
+                        label={t("sites.deleteYes")}
+                        tone="danger"
+                        showLabel
+                        disabled={org?.status === "suspended"}
+                        onClick={(e) => void remove(s, e)}
+                        icon={<Trash2 size={18} />}
+                      />
+                      <IconBtn label={t("sites.deleteNo")} onClick={() => setConfirmDelete(null)} icon={<X size={18} />} />
+                    </>
+                  ) : (
+                    <>
+                      <IconBtn
+                        className="site-scan-btn"
+                        label={busyThis ? t("crawl.running") : waiting ? t("sites.waiting") : t("crawl.scan")}
+                        tone="accent"
+                        showLabel
+                        disabled={busyThis || waiting || org?.status === "suspended"}
+                        onClick={(e) => void scan(s, e)}
+                        icon={<Play size={18} />}
+                      />
+                      <IconBtn
+                        to={`/o/${orgId}/s/${s.id}/edit`}
+                        label={busyThis ? t("sites.lockedWhileScanning") : t("sites.edit")}
+                        disabled={busyThis || org?.status === "suspended"}
+                        icon={<Pencil size={18} />}
+                      />
+                      <IconBtn
+                        label={busyThis ? t("sites.lockedWhileScanning") : t("sites.delete")}
+                        tone="danger"
+                        disabled={busyThis || org?.status === "suspended"}
+                        onClick={(e) => void remove(s, e)}
+                        icon={<Trash2 size={18} />}
+                      />
+                    </>
+                  )}
                 </div>
               </div>
             );

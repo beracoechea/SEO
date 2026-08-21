@@ -1,6 +1,11 @@
 import { initializeApp, type FirebaseApp } from "firebase/app";
 import { getAuth, GoogleAuthProvider, type Auth } from "firebase/auth";
-import { initializeFirestore, type Firestore } from "firebase/firestore";
+import {
+  initializeFirestore,
+  persistentLocalCache,
+  persistentMultipleTabManager,
+  type Firestore,
+} from "firebase/firestore";
 
 function readEnv(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
@@ -22,9 +27,36 @@ export function firebaseConfigured(): boolean {
   return Boolean(config.apiKey && config.projectId && config.appId);
 }
 
+export function isFirestoreNetworkError(e: unknown): boolean {
+  const code = typeof e === "object" && e && "code" in e ? String((e as { code: unknown }).code) : "";
+  const msg = e instanceof Error ? e.message : String(e ?? "");
+  return (
+    code.includes("unavailable") ||
+    code.includes("deadline") ||
+    /NAME_NOT_RESOLVED|NETWORK_CHANGED|Failed to fetch|network/i.test(msg)
+  );
+}
+
 let app: FirebaseApp | null = null;
 let auth: Auth | null = null;
 let db: Firestore | null = null;
+
+function openFirestore(instance: FirebaseApp): Firestore {
+  const settings: {
+    ignoreUndefinedProperties: boolean;
+    experimentalForceLongPolling: boolean;
+    experimentalAutoDetectLongPolling: boolean;
+    localCache?: ReturnType<typeof persistentLocalCache>;
+  } = {
+    ignoreUndefinedProperties: true,
+    experimentalForceLongPolling: true,
+    experimentalAutoDetectLongPolling: false,
+  };
+  if (typeof indexedDB !== "undefined") {
+    settings.localCache = persistentLocalCache({ tabManager: persistentMultipleTabManager() });
+  }
+  return initializeFirestore(instance, settings, FIRESTORE_DATABASE_ID);
+}
 
 export function getFirebaseAuth(): Auth {
   if (!firebaseConfigured()) {
@@ -33,14 +65,7 @@ export function getFirebaseAuth(): Auth {
   if (!app) {
     app = initializeApp(config);
     auth = getAuth(app);
-    db = initializeFirestore(
-      app,
-      {
-        ignoreUndefinedProperties: true,
-        experimentalForceLongPolling: true,
-      },
-      FIRESTORE_DATABASE_ID,
-    );
+    db = openFirestore(app);
   }
   return auth!;
 }

@@ -23,6 +23,8 @@ El versionado sigue [SemVer](https://semver.org/lang/es/).
 - Guía de instalación (desarrollo + Docker en el cliente) y tester automático (`scripts/verify.ps1`, hook de `git push`, GitHub Actions).
 - Runtime: crawl on-demand del sitio (BFS + sitemap, tope de la org), JWT, SQLite. Un escaneo a la vez, progreso en % y historial en la tarjeta. La web en desarrollo arranca el motor sola y el usuario solo pulsa Escanear.
 - Firestore rules y guía de versiones / producción.
+- Editar y eliminar sitios (origin, plantillas, exclusiones) desde la tarjeta o la ficha. Mientras ese sitio se escanea, editar y eliminar quedan bloqueados.
+- Botón de consulta en el header con la colorimetría de los nodos (gris / verde / rojo / azul).
 
 ### Changed
 
@@ -35,6 +37,7 @@ El versionado sigue [SemVer](https://semver.org/lang/es/).
 - Nodos de tendencia: 5 por sitio, con score al pasar el cursor.
 - Firestore (`webs`) fuerza long polling para evitar 400 en el canal Listen.
 - GitHub Actions: `checkout@v5`, `setup-node@v5` y `setup-python@v6` (runtime Node 24; Node 20 está deprecado en los runners).
+- Caché local de Firestore y reintento breve si el DNS/red corta el canal Listen/Write.
 
 ### Fixed
 

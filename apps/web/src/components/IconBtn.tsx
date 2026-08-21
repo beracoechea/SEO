@@ -11,9 +11,9 @@ type Props = {
   showLabel?: boolean;
 } & Omit<ButtonHTMLAttributes<HTMLButtonElement>, "children">;
 
-export function IconBtn({ label, tone = "ghost", to, icon, showLabel = false, className = "", ...rest }: Props) {
+export function IconBtn({ label, tone = "ghost", to, icon, showLabel = false, className = "", disabled, ...rest }: Props) {
   const cls = `icon-btn tone-${tone}${showLabel ? " with-label" : ""} ${className}`.trim();
-  if (to) {
+  if (to && !disabled) {
     return (
       <Link to={to} className={cls} aria-label={label} title={label}>
         {icon}
@@ -22,7 +22,7 @@ export function IconBtn({ label, tone = "ghost", to, icon, showLabel = false, cl
     );
   }
   return (
-    <button type="button" className={cls} aria-label={label} title={label} {...rest}>
+    <button type="button" className={cls} aria-label={label} title={label} disabled={disabled} {...rest}>
       {icon}
       {showLabel ? <span>{label}</span> : null}
     </button>

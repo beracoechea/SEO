@@ -11,7 +11,7 @@ import {
   updateDoc,
   where,
 } from "firebase/firestore";
-import { getDb } from "./firebase";
+import { getDb, isFirestoreNetworkError } from "./firebase";
 
 export type Role = "owner" | "member";
 export type OrgStatus = "active" | "suspended";
@@ -71,6 +71,16 @@ function db() {
   return getDb();
 }
 
+async function retryRead<T>(fn: () => Promise<T>): Promise<T> {
+  try {
+    return await fn();
+  } catch (e) {
+    if (!isFirestoreNetworkError(e)) throw e;
+    await new Promise((r) => setTimeout(r, 600));
+    return fn();
+  }
+}
+
 function orgFromData(id: string, d: Record<string, unknown>): Org {
   const status = d.status === "suspended" ? "suspended" : "active";
   return {
@@ -113,7 +123,7 @@ export async function saveLocale(uid: string, locale: "es" | "en") {
 }
 
 export async function listMyOrgs(uid: string): Promise<Org[]> {
-  const snap = await getDocs(collection(db(), "users", uid, "orgIndex"));
+  const snap = await retryRead(() => getDocs(collection(db(), "users", uid, "orgIndex")));
   const orgs: Org[] = [];
   for (const row of snap.docs) {
     const orgSnap = await getDoc(doc(db(), "orgs", row.id));
@@ -152,7 +162,7 @@ export async function createOrg(uid: string, email: string, name: string): Promi
 }
 
 export async function getOrg(orgId: string): Promise<Org | null> {
-  const snap = await getDoc(doc(db(), "orgs", orgId));
+  const snap = await retryRead(() => getDoc(doc(db(), "orgs", orgId)));
   if (!snap.exists()) return null;
   return orgFromData(snap.id, snap.data() as Record<string, unknown>);
 }
@@ -191,12 +201,12 @@ function siteFromData(id: string, d: Record<string, unknown>): Site {
 }
 
 export async function listSites(orgId: string): Promise<Site[]> {
-  const snap = await getDocs(collection(db(), "orgs", orgId, "sites"));
+  const snap = await retryRead(() => getDocs(collection(db(), "orgs", orgId, "sites")));
   return snap.docs.map((s) => siteFromData(s.id, s.data() as Record<string, unknown>));
 }
 
 export async function getSite(orgId: string, siteId: string): Promise<Site | null> {
-  const snap = await getDoc(doc(db(), "orgs", orgId, "sites", siteId));
+  const snap = await retryRead(() => getDoc(doc(db(), "orgs", orgId, "sites", siteId)));
   if (!snap.exists()) return null;
   return siteFromData(snap.id, snap.data() as Record<string, unknown>);
 }
@@ -225,6 +235,40 @@ export async function createSite(
     includePatterns: [],
     createdAt: serverTimestamp(),
   });
+}
+
+export async function updateSite(
+  orgId: string,
+  siteId: string,
+  input: {
+    name: string;
+    origin: string;
+    maxPages: number;
+    maxDepth: number;
+    excludePatterns: string[];
+    templateUrls: string[];
+  },
+) {
+  const org = await getOrg(orgId);
+  if (!org) throw new Error("org-missing");
+  if (org.status === "suspended") throw new Error("org-suspended");
+  const maxPages = Math.min(input.maxPages, org.maxPagesPerSite);
+  await updateDoc(doc(db(), "orgs", orgId, "sites", siteId), {
+    name: input.name,
+    origin: input.origin,
+    maxPages,
+    maxDepth: input.maxDepth,
+    excludePatterns: input.excludePatterns,
+    templateUrls: input.templateUrls,
+    updatedAt: serverTimestamp(),
+  });
+}
+
+export async function deleteSite(orgId: string, siteId: string) {
+  const org = await getOrg(orgId);
+  if (!org) throw new Error("org-missing");
+  if (org.status === "suspended") throw new Error("org-suspended");
+  await deleteDoc(doc(db(), "orgs", orgId, "sites", siteId));
 }
 
 export async function updateSiteMaxPages(orgId: string, siteId: string, maxPages: number) {

@@ -39,6 +39,7 @@ export default function App() {
               <Route path="sites/new" element={<NewSitePage />} />
               <Route path="team" element={<TeamPage />} />
               <Route path="settings" element={<Navigate to=".." replace />} />
+              <Route path="s/:siteId/edit" element={<NewSitePage />} />
               <Route path="s/:siteId" element={<SitePlaceholderPage />} />
             </Route>
             <Route path="*" element={<Navigate to="/orgs" replace />} />
