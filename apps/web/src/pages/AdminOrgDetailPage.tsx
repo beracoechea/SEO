@@ -1,8 +1,8 @@
-import { ArrowLeft, Ban, Pause, Play, Plus, Save, Search, UserCheck, UserPlus } from "lucide-react";
+import { ArrowLeft, Ban, Download, Pause, Play, Plus, Save, Search, UserCheck, UserPlus } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { BackLink } from "../components/BackLink";
+import { AlertSettings } from "../components/AlertSettings";
 import { IconBtn } from "../components/IconBtn";
 import { ScanQueue } from "../components/ScanQueue";
 import { useAuth } from "../context/AuthContext";
@@ -14,6 +14,7 @@ import {
   listSites,
   restoreOrgAccess,
   revokeOrgAccess,
+  updateOrg,
   updateOrgEntitlements,
   updateSiteMaxPages,
   type Invite,
@@ -22,6 +23,7 @@ import {
   type Role,
   type Site,
 } from "../lib/db";
+import { defaultShellOrigin, downloadClientInstaller, INSTALLER_RUNTIME_VERSION } from "../lib/clientInstaller";
 import { newSitePath, sitePath } from "../lib/paths";
 import {
   cancelQueued,
@@ -29,6 +31,7 @@ import {
   reorderQueue,
   resolvedRuntimeUrl,
   runQueuedNow,
+  saveRuntimeAlerts,
   startCrawl,
   syncSchedule,
   type CrawlRow,
@@ -56,6 +59,12 @@ export function AdminOrgDetailPage() {
   const [queuedIds, setQueuedIds] = useState<string[]>([]);
   const [queue, setQueue] = useState<QueueItem[]>([]);
   const [runtimeDown, setRuntimeDown] = useState(false);
+  const [shellOrigin, setShellOrigin] = useState(() =>
+    typeof window !== "undefined" ? defaultShellOrigin(window.location.origin) : "",
+  );
+  const [lanUrl, setLanUrl] = useState("");
+  const [alertWebhook, setAlertWebhook] = useState("");
+  const [alertEmail, setAlertEmail] = useState("");
 
   const runtime = resolvedRuntimeUrl(org?.runtimeBaseUrl);
 
@@ -70,6 +79,8 @@ export function AdminOrgDetailPage() {
       setQueuedIds((overview.queue || []).map((q) => q.site_id));
       setQueue(overview.queue || []);
       setRuntimeDown(false);
+      setAlertWebhook(overview.alerts.webhook);
+      setAlertEmail(overview.alerts.email);
     } catch {
       setScores({});
       setScanning(null);
@@ -95,6 +106,7 @@ export function AdminOrgDetailPage() {
     setMaxSites(next.maxSites);
     setMaxPages(next.maxPagesPerSite);
     setMaxMembers(next.maxMembers);
+    setLanUrl(next.runtimeBaseUrl || "");
     setMembers(m);
     setSites(s);
     setInvites(inv);
@@ -211,6 +223,61 @@ export function AdminOrgDetailPage() {
     }
   }
 
+  async function saveLanUrl() {
+    if (!orgId) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const value = lanUrl.trim().replace(/\/$/, "") || null;
+      await updateOrg(orgId, { runtimeBaseUrl: value });
+      await refresh();
+      setNote(t("admin.installerLanSaved"));
+    } catch {
+      setError(t("errors.generic"));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function saveAlerts(next: { webhook: string; email: string }) {
+    setBusy(true);
+    setError(null);
+    try {
+      await saveRuntimeAlerts(runtime, next);
+      setAlertWebhook(next.webhook);
+      setAlertEmail(next.email);
+      setNote(t("alerts.saved"));
+    } catch {
+      setError(t("crawl.needRuntime"));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function downloadInstaller() {
+    if (!org) return;
+    setError(null);
+    const project = String(import.meta.env.VITE_FIREBASE_PROJECT_ID || "").trim();
+    if (!project) {
+      setError(t("admin.installerNeedFirebase"));
+      return;
+    }
+    try {
+      downloadClientInstaller({
+        orgId: org.id,
+        orgName: org.name,
+        firebaseProjectId: project,
+        corsOrigin: shellOrigin,
+        runtimeVersion: INSTALLER_RUNTIME_VERSION,
+      });
+      setNote(t("admin.installerDone"));
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "";
+      if (msg === "installer.corsHttps") setError(t("admin.installerNeedHttps"));
+      else setError(t("errors.generic"));
+    }
+  }
+
   if (!org) {
     return (
       <div className="page">
@@ -287,6 +354,56 @@ export function AdminOrgDetailPage() {
         <IconBtn label={t("common.save")} tone="accent" showLabel disabled={busy} onClick={() => void saveEntitlements()} icon={<Save size={18} />} />
       </div>
       ) : null}
+
+      {org.kind !== "demo" ? (
+      <div className="card stack">
+        <h2 style={{ margin: 0, fontSize: 16 }}>{t("admin.installer")}</h2>
+        <p className="muted">{t("admin.installerHint")}</p>
+        <label>
+          {t("admin.installerOrgId")}
+          <input value={org.id} readOnly onFocus={(e) => e.target.select()} />
+        </label>
+        <label>
+          {t("admin.installerShell")}
+          <input
+            value={shellOrigin}
+            placeholder="https://tu-app.web.app"
+            onChange={(e) => setShellOrigin(e.target.value)}
+          />
+        </label>
+        <p className="muted">{t("admin.installerShellHint")}</p>
+        <IconBtn
+          label={t("admin.installerDownload")}
+          tone="accent"
+          showLabel
+          onClick={() => downloadInstaller()}
+          icon={<Download size={18} />}
+        />
+        <label>
+          {t("admin.installerLan")}
+          <input
+            value={lanUrl}
+            placeholder="http://192.168.1.20:8080"
+            onChange={(e) => setLanUrl(e.target.value)}
+          />
+        </label>
+        <p className="muted">{t("admin.installerLanHint")}</p>
+        <IconBtn
+          label={t("admin.installerLanSave")}
+          showLabel
+          disabled={busy}
+          onClick={() => void saveLanUrl()}
+          icon={<Save size={18} />}
+        />
+      </div>
+      ) : null}
+
+      <AlertSettings
+        webhook={alertWebhook}
+        email={alertEmail}
+        busy={busy}
+        onSave={saveAlerts}
+      />
 
       {org.kind !== "demo" ? (
       <div className="card stack">

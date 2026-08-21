@@ -13,9 +13,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
 from app import __version__
-from app import schedule as sched
+from app import alerts, schedule as sched
 from app.crawler import clear_cancel, crawl_cancelled, request_cancel, run_crawl
-from app.db import connect, init_db
+from app.db import checkpoint_wal, connect, init_db
 from app.indexation import diff_rows, url_key
 from app.parse import assert_public_http_url
 
@@ -24,9 +24,20 @@ load_dotenv(Path(__file__).resolve().parents[1] / ".env")
 _job_lock = asyncio.Lock()
 
 
+async def _finish_crawl(site_id: str, crawl_id: str, origin: str, *, interrupted: bool) -> None:
+    if interrupted:
+        return
+    sched.bump_next_run(site_id)
+    try:
+        await alerts.notify_if_new_404(site_id, crawl_id, origin)
+    except Exception:
+        pass
+
+
 async def _run_job(**kwargs) -> None:
     crawl_id = str(kwargs.get("crawl_id") or "")
     site_id = str(kwargs.get("site_id") or "")
+    origin = str(kwargs.get("origin") or "")
     try:
         await run_crawl(**kwargs)
     except Exception:
@@ -34,8 +45,7 @@ async def _run_job(**kwargs) -> None:
     finally:
         interrupted = crawl_cancelled(crawl_id)
         clear_cancel(crawl_id)
-        if not interrupted:
-            sched.bump_next_run(site_id)
+        await _finish_crawl(site_id, crawl_id, origin, interrupted=interrupted)
         await pump_queue()
 
 
@@ -106,6 +116,10 @@ async def lifespan(_app: FastAPI):
     finally:
         if task:
             task.cancel()
+        try:
+            checkpoint_wal()
+        except Exception:
+            pass
 
 
 app = FastAPI(title="SEO runtime", version=__version__, lifespan=lifespan)
@@ -172,6 +186,13 @@ class ScheduleSiteIn(BaseModel):
 
 class ScheduleIn(BaseModel):
     sites: list[ScheduleSiteIn] = []
+    alertWebhook: str | None = None
+    alertEmail: str | None = None
+
+
+class AlertsIn(BaseModel):
+    alertWebhook: str | None = None
+    alertEmail: str | None = None
 
 
 class QueueReorderIn(BaseModel):
@@ -182,7 +203,20 @@ class QueueReorderIn(BaseModel):
 def health() -> dict[str, str | bool]:
     org = os.getenv("ORG_ID", "")
     suffix = org[-6:] if len(org) >= 6 else org
-    return {"ok": True, "version": __version__, "org_id_suffix": suffix, "queue": True, "js": True}
+    busy = False
+    try:
+        busy = sched.running_crawl() is not None
+    except Exception:
+        busy = False
+    return {
+        "ok": True,
+        "version": __version__,
+        "org_id_suffix": suffix,
+        "queue": True,
+        "js": True,
+        "alerts": True,
+        "busy": busy,
+    }
 
 
 @app.get("/api/me")
@@ -194,10 +228,25 @@ def me(user: dict = Depends(require_user)) -> dict:
 def put_schedule(body: ScheduleIn, user: dict = Depends(require_user)) -> dict:
     try:
         sched.replace_sites([s.model_dump() for s in body.sites])
+        saved = alerts.save_alerts(body.alertWebhook, body.alertEmail)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     snap = sched.snapshot()
-    return {"ok": True, **snap, "uid": user.get("uid")}
+    return {"ok": True, **snap, "alerts": saved, "uid": user.get("uid")}
+
+
+@app.get("/api/alerts")
+def get_alerts(user: dict = Depends(require_user)) -> dict:
+    return {"ok": True, "alerts": alerts.get_alerts(), "uid": user.get("uid")}
+
+
+@app.put("/api/alerts")
+def put_alerts(body: AlertsIn, user: dict = Depends(require_user)) -> dict:
+    try:
+        saved = alerts.save_alerts(body.alertWebhook, body.alertEmail)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {"ok": True, "alerts": saved, "uid": user.get("uid")}
 
 
 @app.delete("/api/queue/{site_id}")
@@ -281,7 +330,7 @@ async def create_crawl(
     if launched.get("mode") == "sync":
         try:
             result = await run_crawl(**launched["kwargs"])
-            sched.bump_next_run(site_id)
+            await _finish_crawl(site_id, launched["id"], body.origin, interrupted=False)
             return {"ok": True, "queued": False, "crawl": result, "uid": user.get("uid")}
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
@@ -368,6 +417,7 @@ def list_summaries(user: dict = Depends(require_user)) -> dict:
             "active": dict(active) if active else None,
             "queue": snap["queue"],
             "schedules": snap["schedules"],
+            "alerts": alerts.get_alerts(),
         }
     finally:
         con.close()

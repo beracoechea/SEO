@@ -3,7 +3,7 @@
 Herramienta de auditoría técnica de sitios (HTTP, on-page, diffs, incidentes).
 
 - **Cáscara web (HTTPS):** login Google, organizaciones, equipo, lista de links, consola de administración. Firestore: base nombrada **`webs`** (el `(default)` es de la otra app del mismo proyecto Blaze).
-- **Runtime (LAN):** crawler, SQLite, historial. Los datos del crawl no se suben a Firebase.
+- **Runtime (LAN):** crawler, SQLite, historial. Los crawls no se suben a Firebase. En `/admin` se descarga un instalador; en planta se actualiza solo (sin borrar SQLite) y avisa 404 nuevos por webhook gratis (Discord, Teams, ntfy).
 
 ## Cómo correrlo e instalarlo en un cliente
 

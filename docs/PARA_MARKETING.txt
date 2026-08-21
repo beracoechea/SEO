@@ -48,8 +48,11 @@ SÍ ES
   el detalle de cada URL.
 - Multi-empresa: cada cliente entra con su cuenta Google y
   solo ve sus sitios.
-- Autohospedado en planta: un PC o servidor con Docker en
-  la red interna. El historial no sale de ahí.
+  - Autohospedado en planta: un PC o servidor con Docker en
+    la red interna. El historial no sale de ahí.
+    Logicbus genera un instalador desde Administración
+    (un archivo PowerShell). Instala Docker si hace falta.
+    El cliente no configura IDs.
 
 NO ES (no lo prometas)
 - No sustituye a Google Search Console.
@@ -111,7 +114,9 @@ CÓMO ARMAR LA OFERTA (sin inventar precios aquí)
      Sirve para cerrar o para un “antes de contratar SEO”.
   B) Monitor mensual
      Runtime en su planta + cadencia semanal o mensual +
-     un informe cuando el score baja o aparecen 404 nuevos.
+     aviso gratis por Discord / Teams / ntfy cuando aparecen
+     404 nuevos (sale del PC de planta, sin Firebase) +
+     un informe cuando el score baja.
   C) Demo de ventas (interno Logicbus)
      En Administración → Demostraciones: se crea una org
      propia, se pega el origin del prospecto, se escanea y
@@ -139,7 +144,8 @@ OBJECIONES FRECUENTES
   “¿Van a meter un agente en nuestro servidor?”
   Un contenedor Docker en un PC de la red interna, puerto
   8080 solo en LAN. Login con Google. El historial del crawl
-  no sube a Firebase.
+  no sube a Firebase. Logicbus deja un instalador; no hay
+  que editar archivos.
 
   “Nuestra web es de esas que cargan con JavaScript.”
   Justamente: el monitor puede renderizar esas páginas.

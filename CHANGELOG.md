@@ -13,10 +13,13 @@ El versionado sigue [SemVer](https://semver.org/lang/es/).
 - Listado de URLs con carga al bajar (no se pintan miles de filas de golpe).
 - Burbuja de cupo sitios usados/permitidos y banner de escaneo en progreso (llenado tipo agua) en la home de la org.
 - Botones de volver más visibles e interruptor ES/EN con el idioma activo resaltado.
+- Actualización silenciosa del runtime en planta (tarea de Windows; no borra SQLite).
+- Avisos de 404 nuevos por webhook gratis (Discord, Teams, ntfy, Telegram) guardados en el SQLite de planta, sin Firestore.
 - Exportar informe Excel (resumen, gráficos HTTP/hallazgos y listado de URLs con saltos, destino, status y hallazgos).
 - Exportar informe PDF (resumen, gráficos y las URLs con más hallazgos; el listado completo sigue en Excel). Botones compactos: Excel verde y PDF rojo, con icono de descarga.
 - Render de páginas JavaScript (Chromium): por sitio en automático, siempre o solo HTML del servidor.
 - Ficha en lenguaje claro para marketing y ventas: `docs/PARA_MARKETING.txt`.
+- Instalador de planta generado en `/admin` por cliente (PowerShell con `ORG_ID` ya puesto; instala Docker Desktop si falta).
 - Mapa de indexación: `X-Robots-Tag` + meta robots, sitemap vs crawl, huérfanas, sitemap en 404, sitemap bloqueado por robots.txt, noindex en el XML, URLs fuera del sitemap.
 - Diff entre escaneos: 404 nuevos/recuperados, noindex nuevo, titles cambiados, URLs añadidas o que ya no se piden.
 - Cáscara web: login Google, i18n es/en, orgs, sitios, equipo.

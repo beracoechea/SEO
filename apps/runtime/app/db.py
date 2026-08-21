@@ -76,6 +76,14 @@ CREATE TABLE IF NOT EXISTS crawl_queue (
   sort INTEGER NOT NULL DEFAULT 0
 );
 CREATE INDEX IF NOT EXISTS idx_queue_pending ON crawl_queue(id);
+CREATE TABLE IF NOT EXISTS runtime_settings (
+  k TEXT PRIMARY KEY,
+  v TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS alerts_sent (
+  crawl_id TEXT PRIMARY KEY,
+  sent_at TEXT NOT NULL
+);
 """
 
 EXTRA_COLS = {
@@ -121,6 +129,16 @@ def connect() -> sqlite3.Connection:
     con.row_factory = sqlite3.Row
     con.execute("PRAGMA journal_mode=WAL")
     return con
+
+
+def checkpoint_wal() -> None:
+    """Flush WAL into the main file so a container rebuild cannot leave a torn DB."""
+    con = connect()
+    try:
+        con.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+        con.commit()
+    finally:
+        con.close()
 
 
 def _ensure_columns(con: sqlite3.Connection) -> None:

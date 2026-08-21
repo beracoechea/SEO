@@ -253,4 +253,4 @@ Nunca apuntes el `.env.local` de desarrollo al proyecto `prod` para “probar un
 ## 12. Resumen en una frase
 
 `main` + tag `vX.Y.Z` + `firebase deploy` (proyecto **prod**) = cáscara en producción.  
-El crawler se actualiza en la LAN con el mismo tag, no con Hosting.
+El crawler en planta **no** se publica con Hosting: el instalador deja una tarea de Windows (`actualizar.ps1`) que baja el tag nuevo, hace `compose stop` + `up --build` y **no** borra el volumen SQLite. Los avisos de 404 van por webhook gratis desde ese PC; no hace falta desplegar rules de Firestore.

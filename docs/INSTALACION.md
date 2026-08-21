@@ -29,12 +29,12 @@ Ficha para ventas y personas no técnicas: **[PARA_MARKETING.txt](PARA_MARKETING
 
 ### En el PC/servidor del cliente
 
-- Windows 10/11 o Linux
-- **Docker Desktop** (Windows) o Docker Engine + Compose (Linux)
+- Windows 10/11
 - Red LAN estable; el puerto **8080** abierto **solo en la red interna** (no a internet)
 - Un Google Workspace / Gmail con el que van a entrar a la cáscara
+- Internet la primera vez (el instalador baja Docker Desktop si falta, y Chromium)
 
-No hace falta Node ni Python en la planta.
+No hace falta Node, Python ni instalar Docker a mano. El `.ps1` de `/admin` lo hace.
 
 ---
 
@@ -138,71 +138,75 @@ En `/admin` → **Demostraciones** el operador crea orgs propias (no son un clie
 
 ## 2. Instalar el runtime en un cliente (Docker)
 
-Esto es lo que se hace en el PC de planta. Logicbus ya tiene la cáscara en HTTPS y la org creada.
+Esto es lo que se hace en el PC de planta. Logicbus ya tiene la cáscara en HTTPS y la org creada. **El cliente no edita `.env` ni clona el repo.** El instalador sale de `/admin` de esa org.
 
-### 2.1 Lo que Logicbus entrega
+### 2.1 Lo que Logicbus hace en `/admin`
 
-1. Acceso al repo (o un zip del **tag** `vX.Y.Z`, nunca de un `main` a medias).
-2. El `ORG_ID` de esa empresa (el de Firestore, URL `/o/...`).
-3. El `FIREBASE_PROJECT_ID` de **producción**.
-4. La URL pública de la cáscara, por ejemplo `https://….web.app`.
-5. Esta guía.
+1. Abre **Clientes** → la organización.
+2. En **Motor en la planta**, confirma la **URL pública de la cáscara** (HTTPS de Hosting, no localhost).
+3. **Descargar instalador**. Baja `Instalar-SEO-….ps1` con el `ORG_ID` ya puesto.
+4. Ese archivo se lleva al PC de planta (USB, correo interno o se ejecuta por AnyDesk).
 
 ### 2.2 En el PC del cliente
 
-1. Instalar [Docker Desktop](https://www.docker.com/products/docker-desktop/). Reiniciar si lo pide. Debe quedar **Running**.
-2. Clonar el tag acordado (o descomprimir el zip en `C:\seo-runtime`):
+1. Clic derecho en el `.ps1` → **Ejecutar con PowerShell** (o `powershell -ExecutionPolicy Bypass -File .\Instalar-SEO-….ps1`). Acepta el aviso de administrador.
+2. Si no hay Docker, el script descarga e instala **Docker Desktop** (~500 MB). Si Windows pide reiniciar, reinicia y **vuelve a ejecutar el mismo `.ps1`**.
+3. La primera vez también baja Chromium; tarda. Al terminar imprime `http://127.0.0.1:8080/api/health` y la URL LAN (`http://192.168.x.x:8080`).
+4. En `/admin` de esa org, pega esa URL LAN en **URL del motor en la LAN** y **Guardar**.
 
-```powershell
-git clone --branch v0.1.0 --depth 1 https://github.com/beracoechea/SEO.git C:\seo-runtime
-cd C:\seo-runtime
-```
+No hace falta Git ni Node ni Python ni instalar Docker a mano. El firewall se abre solo en perfil **privado**, puerto 8080.
 
-3. Crear el `.env` del paquete cliente:
-
-```powershell
-copy deploy\cliente\.env.example deploy\cliente\.env
-notepad deploy\cliente\.env
-```
-
-Completar:
-
-```
-ORG_ID=...                    # el de la org en Firestore
-FIREBASE_PROJECT_ID=...       # proyecto Firebase de producción
-CORS_ORIGIN=https://TU-APP.web.app
-RUNTIME_PORT=8080
-RUNTIME_VERSION=0.1.0
-```
-
-`CORS_ORIGIN` **tiene** que ser el origen HTTPS de la cáscara. Si queda `localhost`, el navegador del usuario no podrá llamar al runtime.
-
-La primera vez el build baja Chromium (render JS). La imagen queda más grande que un runtime solo HTTP; es normal.
-
-5. Probar en ese mismo PC: http://localhost:8080/api/health
-
-6. Anotar la **IP LAN** del PC (`ipconfig` → IPv4, tipo `192.168.x.x`). Los demás usuarios usarán `http://192.168.x.x:8080`.
-
-7. Firewall de Windows: permitir TCP 8080 **solo en red privada**, no en perfiles públicos ni en el router hacia WAN.
-
-8. En la oficina, la cáscara debe alcanzar ese `http://192.168.x.x:8080` (misma LAN o VPN). En desarrollo local Vite arranca el motor y no hay que pegar ninguna URL. Si estás fuera de la red del cliente, el historial no estará (es el diseño).
+Si el script no puede bajar GitHub (repo privado o sin internet), Logicbus deja el tag descomprimido en `C:\seo-runtime` y vuelve a ejecutar el mismo `.ps1` (detecta el compose y solo escribe `.env` y levanta Docker).
 
 ### 2.3 Actualizar el runtime del cliente
 
+El instalador de `/admin` deja en `C:\seo-runtime\actualizar.ps1` y una tarea de Windows (**Logicbus SEO runtime update**): cada día a las 03:20 y al iniciar sesión. Esa pasada:
+
+1. Si hay un crawl en curso, **no toca nada** (reintenta la próxima vez).
+2. Si Docker Desktop no está Running, omite esa pasada.
+3. Pregunta a GitHub si hay un tag más nuevo; si no, no reconstruye.
+4. Hace `docker compose stop` (SIGTERM). El runtime vacía el WAL de SQLite (`PRAGMA wal_checkpoint`) al apagar.
+5. Copia el código nuevo **sin pisar** `deploy\cliente\.env` (SMTP y extras se conservan).
+6. `docker compose up -d --build` — el volumen `runtime-data` **no se borra**.
+
+A mano (misma regla):
+
 ```powershell
 cd C:\seo-runtime
-git fetch --tags
-git checkout v0.1.1
+powershell -ExecutionPolicy Bypass -File .\actualizar.ps1 -Mode Update
+```
+
+o:
+
+```powershell
+docker compose -f deploy\cliente\docker-compose.yml --env-file deploy\cliente\.env stop
 docker compose -f deploy\cliente\docker-compose.yml --env-file deploy\cliente\.env up -d --build
 ```
 
-El volumen Docker `runtime-data` **no se borra**. No ejecutes `docker compose down -v` salvo que quieras tirar el historial.
+**Nunca** `docker compose down -v`: eso tira el historial.
 
-### 2.4 Qué no hacer en el cliente
+### 2.4 Avisos de 404 nuevos (gratis, sin Firebase)
+
+El panel está en la LAN: si nadie lo abre, el motor igual avisa. La URL del webhook se guarda en el **SQLite de planta**, no en Firestore: **no hay que desplegar rules ni pagar un correo en la nube**.
+
+En Sitios (o en `/admin` de la org), con el motor LAN alcanzable:
+
+1. Pega un webhook **gratis**:
+   - **Discord** (recomendado): canal → Integraciones → Webhooks → copiar URL.
+   - **Microsoft Teams**: conector Incoming Webhook.
+   - **ntfy.sh**: `https://ntfy.sh/un-tema-secreto` y la app ntfy en el teléfono (gratis).
+   - **Telegram**: `https://api.telegram.org/bot<token>/sendMessage?chat_id=<id>`
+2. Guarda. El próximo escaneo que encuentre 404 **nuevos** (no el primero) hace POST desde el PC de planta.
+
+Correo por SMTP solo si ese PC ya tiene el mail de la empresa (`SMTP_HOST` en `deploy\cliente\.env`). No se usa Firebase Extensions ni SendGrid.
+
+El PC de planta tiene que estar encendido, igual que el escaneo programado.
+
+### 2.5 Qué no hacer en el cliente
 
 - No corras `npm run dev` ni Firebase Hosting ahí.
 - No expongas el puerto 8080 a internet.
-- No copies `.env` a un chat ni al repo.
+- No copies el `.ps1` a un chat público (lleva el ID de la org).
 - No cambies `ORG_ID` a la org de otra empresa (el runtime queda atado a una sola).
 
 ---
@@ -275,7 +279,8 @@ Después de verde en Actions:
 2. Crear org, agregar un sitio `https://…`, invitar un segundo Gmail y confirmar que **ve el mismo origin**.
 3. `/admin` (con `platformAdmins`) lista **Clientes**. En **Demostraciones** crea una org tuya, agrega un `https://` de prospecto, **Escanear** y descarga Excel (verde) y PDF (rojo). Restringir un usuario de un cliente y confirmar que ya no entra.
 4. Abrir la org: Sitios → **Escanear** en un origin. El anillo y la tabla se llenan con URLs reales (títulos distintos por página).
-5. No hay `.env` en el commit (`git status`).
+5. `/admin` → cliente → **Descargar instalador**, ejecutar el `.ps1` en un PC con Docker, pegar la URL LAN y comprobar health. En Sitios, guardar un webhook de prueba y un segundo escaneo con un 404 nuevo debe pegarle.
+6. No hay `.env` en el commit (`git status`).
 
 Detalle de tags y Firebase Hosting: [VERSIONES_GITHUB.md](VERSIONES_GITHUB.md).
 
@@ -289,7 +294,7 @@ Detalle de tags y Firebase Hosting: [VERSIONES_GITHUB.md](VERSIONES_GITHUB.md).
 | Tests web | `cd apps\web` → `npm test` |
 | Runtime local | `cd apps\runtime` → `uvicorn app.main:app --port 8080` |
 | Runtime Docker (dev) | `docker compose up -d --build` |
-| Runtime Docker (cliente) | ver sección 2 |
+| Runtime Docker (cliente) | `/admin` → Descargar instalador |
 | Tester completo local | `.\scripts\verify.ps1` |
 | Instalar freno de push | `.\scripts\install-git-hooks.ps1` |
 | Publicar cáscara | solo con Actions verde; ver `docs/VERSIONES_GITHUB.md` |
@@ -304,6 +309,9 @@ Detalle de tags y Firebase Hosting: [VERSIONES_GITHUB.md](VERSIONES_GITHUB.md).
 | Google cierra el popup | Authorized domains; el origen debe ser `localhost` o HTTPS |
 | No aparece Administración | Falta `platformAdmins/{tuUid}` |
 | Runtime unreachable | Docker Running, IP LAN, firewall, `CORS_ORIGIN` = origen de la cáscara |
+| El .ps1 pide reiniciar | Normal tras instalar Docker. Reinicia y ejecuta **el mismo** instalador |
 | Sitio SPA sin titles | En el sitio, **Páginas con JavaScript** en Automático o Siempre; `playwright install chromium` en el venv |
-| `docker compose` pide `.env` | Copiaste el example a `.env` y llenaste `ORG_ID` |
+| `docker compose` pide `.env` | En planta usa el instalador de `/admin`; no copies el example a mano |
+| No llega el aviso de 404 | Motor LAN encendido; webhook Discord/Teams/ntfy HTTPS (no localhost); el primer crawl no avisa; la URL se guarda en el SQLite de planta, no en Firebase |
+| Tras actualizar se perdió el historial | Se usó `docker compose down -v`. No lo hagas; el volumen `runtime-data` es el SQLite |
 | Push rechazado | `.\scripts\verify.ps1` en rojo; lee el `FAIL` |

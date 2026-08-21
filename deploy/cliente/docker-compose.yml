@@ -2,6 +2,7 @@
 #   docker compose -f deploy/cliente/docker-compose.yml --env-file deploy/cliente/.env up -d --build
 #
 # Guía completa: docs/INSTALACION.md
+# El historial SQLite vive en el volumen runtime-data. Nunca uses `docker compose down -v`.
 
 services:
   runtime:

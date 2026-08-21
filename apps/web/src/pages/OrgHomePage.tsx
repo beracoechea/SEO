@@ -7,10 +7,12 @@ import { ScanQueue } from "../components/ScanQueue";
 import { ScoreRing } from "../components/ScoreRing";
 import { TrendNodes } from "../components/TrendNodes";
 import { deleteSite, getOrg, listSites, type Org, type Site } from "../lib/db";
+import { AlertSettings } from "../components/AlertSettings";
 import { isFirestoreNetworkError } from "../lib/firebase";
 import {
   listSiteSummaries,
   resolvedRuntimeUrl,
+  saveRuntimeAlerts,
   startCrawl,
   syncSchedule,
   cancelQueued,
@@ -56,6 +58,8 @@ export function OrgHomePage() {
   const [scanning, setScanning] = useState<string | null>(null);
   const [queue, setQueue] = useState<QueueItem[]>([]);
   const [schedules, setSchedules] = useState<Record<string, { interval: string; next_run_at: string | null }>>({});
+  const [alertWebhook, setAlertWebhook] = useState("");
+  const [alertEmail, setAlertEmail] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
 
@@ -71,6 +75,8 @@ export function OrgHomePage() {
       setScanning(overview.active?.site_id ?? null);
       setQueue(overview.queue || []);
       setSchedules(overview.schedules || {});
+      setAlertWebhook(overview.alerts.webhook);
+      setAlertEmail(overview.alerts.email);
     } catch {
       setScores({});
     }
@@ -144,6 +150,19 @@ export function OrgHomePage() {
       if (msg === "crawl.alreadyRunning") await refreshScores();
       else if (msg === "Failed to fetch" || msg.includes("NetworkError")) setError(t("crawl.needRuntime"));
       else setError(t("crawl.failed"));
+    }
+  }
+
+  async function saveAlerts(next: { webhook: string; email: string }) {
+    setError(null);
+    try {
+      await saveRuntimeAlerts(runtime, next);
+      setAlertWebhook(next.webhook);
+      setAlertEmail(next.email);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "";
+      if (msg === "Failed to fetch" || msg.includes("NetworkError")) setError(t("crawl.needRuntime"));
+      else setError(t("errors.generic"));
     }
   }
 
@@ -231,6 +250,9 @@ export function OrgHomePage() {
       ) : null}
 
       {error ? <div className="banner warn">{error}</div> : null}
+      {org ? (
+        <AlertSettings webhook={alertWebhook} email={alertEmail} onSave={saveAlerts} />
+      ) : null}
       {sites.length === 0 ? (
         <div className="card muted">{t("sites.empty")}</div>
       ) : (
