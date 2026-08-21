@@ -1,6 +1,14 @@
 import ExcelJS from "exceljs";
 import type { CrawlRow, PageSnap } from "./runtime";
-import { findingCounts, httpMixFromPages, issueCodes, pageHadRedirect, pageHttpClass } from "./pageFilter";
+import {
+  findingCounts,
+  httpMixFromPages,
+  isCriticalPage,
+  isWarningPage,
+  issueCodes,
+  pageHadRedirect,
+  pageHttpClass,
+} from "./pageFilter";
 import { barChartPng, pieChartPng } from "./reportCharts";
 
 export type ReportCopy = {
@@ -37,6 +45,69 @@ export type ReportCopy = {
   chartHttp: string;
   chartFindings: string;
 };
+
+export const PDF_URL_CAP = 80;
+
+export function reportFileStem(siteName: string): string {
+  const stamp = new Date().toISOString().slice(0, 10);
+  const safe = (siteName || "sitio").replace(/[^\w.-]+/g, "_").slice(0, 40);
+  return `seo-${safe}-${stamp}`;
+}
+
+export function triggerDownload(blob: Blob, filename: string) {
+  const link = document.createElement("a");
+  link.href = URL.createObjectURL(blob);
+  link.download = filename;
+  link.click();
+  URL.revokeObjectURL(link.href);
+}
+
+export function pickReportPages(pages: PageSnap[], cap = PDF_URL_CAP): PageSnap[] {
+  const rank = (page: PageSnap) => {
+    if (isCriticalPage(page)) return 0;
+    if (isWarningPage(page)) return 1;
+    if (pageHttpClass(page) === "redirect") return 2;
+    return 3;
+  };
+  return [...pages].sort((a, b) => rank(a) - rank(b) || (b.ms || 0) - (a.ms || 0)).slice(0, cap);
+}
+
+export function buildReportCopy(t: (key: string) => string): ReportCopy {
+  return {
+    summary: t("export.summary"),
+    http: t("export.http"),
+    findings: t("export.findings"),
+    urls: t("export.urls"),
+    site: t("sites.name"),
+    origin: t("sites.origin"),
+    score: t("audit.score"),
+    pages: t("audit.pages"),
+    sitemap: t("audit.sitemap"),
+    avgMs: t("audit.avgMs"),
+    metric: t("export.metric"),
+    value: t("export.value"),
+    http200: t("audit.http200"),
+    http3xx: t("audit.http3xx"),
+    http4xx: t("audit.http4xx"),
+    http5xx: t("audit.http5xx"),
+    critical: t("audit.critical"),
+    warning: t("audit.warning"),
+    ok: t("audit.ok"),
+    issue: t("audit.issues"),
+    count: t("export.count"),
+    url: t("sites.origin"),
+    finalUrl: t("audit.landedAt"),
+    hops: t("export.hops"),
+    redirectStatus: t("export.redirectStatus"),
+    status: t("export.status"),
+    ms: t("audit.avgMs"),
+    title: t("export.titleCol"),
+    h1: "H1",
+    issues: t("audit.issues"),
+    chartHttp: t("audit.distribution"),
+    chartFindings: t("audit.issues"),
+  };
+}
 
 function dataUrlToBase64(dataUrl: string): string {
   const comma = dataUrl.indexOf(",");
@@ -195,11 +266,5 @@ export async function downloadAuditWorkbook(input: {
   const blob = new Blob([buffer], {
     type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
   });
-  const stamp = new Date().toISOString().slice(0, 10);
-  const safe = (siteName || "sitio").replace(/[^\w.-]+/g, "_").slice(0, 40);
-  const link = document.createElement("a");
-  link.href = URL.createObjectURL(blob);
-  link.download = `seo-${safe}-${stamp}.xlsx`;
-  link.click();
-  URL.revokeObjectURL(link.href);
+  triggerDownload(blob, `${reportFileStem(siteName)}.xlsx`);
 }

@@ -81,6 +81,7 @@ export type PageSnap = {
   via_sitemap?: number;
   robots_header?: string | null;
   fetched?: number;
+  rendered?: number;
   diff?: string;
 };
 
@@ -144,6 +145,7 @@ export async function startCrawl(
     maxPages?: number;
     maxDepth?: number;
     scanEvery?: string;
+    renderJs?: string;
   },
 ) {
   return runtimeFetch(runtimeUrl, `/api/sites/${encodeURIComponent(siteId)}/crawls`, {
@@ -184,6 +186,7 @@ export async function syncSchedule(
     maxPages: number;
     maxDepth: number;
     scanEvery: string;
+    renderJs?: string;
   }[],
   rateLimit: number,
 ) {
@@ -198,6 +201,7 @@ export async function syncSchedule(
         maxPages: s.maxPages,
         maxDepth: s.maxDepth,
         scanEvery: s.scanEvery || "off",
+        renderJs: s.renderJs || "auto",
       })),
     }),
   });

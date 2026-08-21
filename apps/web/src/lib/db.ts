@@ -39,6 +39,7 @@ export type Org = {
 };
 
 export type ScanEvery = "off" | "day" | "3days" | "week" | "month";
+export type RenderJs = "off" | "on" | "auto";
 
 export type Site = {
   id: string;
@@ -51,6 +52,7 @@ export type Site = {
   excludePatterns: string[];
   templateUrls: string[];
   scanEvery: ScanEvery;
+  renderJs: RenderJs;
 };
 
 export type Member = {
@@ -216,6 +218,7 @@ function siteFromData(id: string, d: Record<string, unknown>): Site {
     scanEvery: (["off", "day", "3days", "week", "month"].includes(d.scanEvery as string)
       ? (d.scanEvery as Site["scanEvery"])
       : "off"),
+    renderJs: (["off", "on", "auto"].includes(d.renderJs as string) ? (d.renderJs as Site["renderJs"]) : "auto"),
   };
 }
 
@@ -240,6 +243,7 @@ export async function createSite(
     excludePatterns: string[];
     templateUrls: string[];
     scanEvery?: Site["scanEvery"];
+    renderJs?: Site["renderJs"];
   },
   opts?: { asPlatformAdmin?: boolean },
 ) {
@@ -252,6 +256,7 @@ export async function createSite(
   await addDoc(collection(db(), "orgs", orgId, "sites"), {
     ...input,
     scanEvery: input.scanEvery || "off",
+    renderJs: input.renderJs || "auto",
     maxPages,
     active: true,
     includePatterns: [],
@@ -270,6 +275,7 @@ export async function updateSite(
     excludePatterns: string[];
     templateUrls: string[];
     scanEvery?: Site["scanEvery"];
+    renderJs?: Site["renderJs"];
   },
   opts?: { asPlatformAdmin?: boolean },
 ) {
@@ -285,6 +291,7 @@ export async function updateSite(
     excludePatterns: input.excludePatterns,
     templateUrls: input.templateUrls,
     scanEvery: input.scanEvery || "off",
+    renderJs: input.renderJs || "auto",
     updatedAt: serverTimestamp(),
   });
 }

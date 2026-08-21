@@ -52,6 +52,7 @@ export function UrlFeed({ pages }: { pages: PageSnap[] }) {
               <span>{p.ms != null ? `${p.ms} ms` : "—"}</span>
               <span>{t("audit.score")} {p.score}</span>
               {(p.hops || 0) > 0 ? <span>{t("audit.hops", { n: p.hops })}</span> : null}
+              {p.rendered ? <span>{t("audit.rendered")}</span> : null}
             </div>
             {p.final_url && p.final_url !== p.url ? (
               <div className="muted ellipsis" title={p.final_url}>

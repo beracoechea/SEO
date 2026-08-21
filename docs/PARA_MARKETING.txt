@@ -1,0 +1,206 @@
+MONITOR TÉCNICO SEO
+Ficha para personas comunes y para el área de marketing
+Logicbus · agosto 2026
+
+Este archivo no es un manual técnico. Es para explicar el producto
+en una reunión, un correo o una propuesta. La guía de instalación
+está en docs/INSTALACION.md.
+
+
+============================================================
+1. EN UNA FRASE
+============================================================
+
+Revisamos si el sitio web de una empresa se puede rastrear e
+indexar bien (páginas rotas, redirecciones, titles, sitemap) y
+entregamos un informe. Los datos del recorrido se quedan en la
+red de la empresa; no se van a la nube de un tercero.
+
+
+============================================================
+2. QUÉ PROBLEMA RESUELVE (lenguaje de cliente)
+============================================================
+
+Muchas empresas invierten en publicidad o en “estar en Google”
+y no saben si su propia web está rota por dentro:
+
+- Páginas que dan error (404) y Google no puede mostrar.
+- Enlaces que dan vueltas (redirecciones de más).
+- Títulos repetidos o vacíos: Google no distingue una ficha
+  de producto de otra.
+- El sitemap dice una cosa y el sitio otra.
+- Sitios hechos en React / Next que “en el navegador se ven”
+  pero un robot ve la página vacía.
+
+Eso no se ve en Google Analytics. Analytics mide visitas.
+Este monitor mide si el sitio está sano para ser encontrado.
+
+
+============================================================
+3. QUÉ ES Y QUÉ NO ES
+============================================================
+
+SÍ ES
+- Una auditoría técnica de la web (HTTP y contenido on-page).
+- Un monitor: se puede escanear a mano o cada día / 3 días /
+  semana / mes.
+- Un entregable comercial: PDF para la reunión y Excel con
+  el detalle de cada URL.
+- Multi-empresa: cada cliente entra con su cuenta Google y
+  solo ve sus sitios.
+- Autohospedado en planta: un PC o servidor con Docker en
+  la red interna. El historial no sale de ahí.
+
+NO ES (no lo prometas)
+- No sustituye a Google Search Console.
+- No es Ahrefs ni Semrush: no mide keywords, ni backlinks,
+  ni “en qué posición estás”.
+- No es Lighthouse ni Core Web Vitals (velocidad de laboratorio
+  o de usuarios reales de Chrome).
+- No es un antivirus ni un escáner de ciberseguridad.
+- No es un diseñador web ni “te posicionamos en el #1”.
+
+
+============================================================
+4. CÓMO SE VE EL SERVICIO
+============================================================
+
+1. El cliente (o Logicbus en una demo) registra el sitio
+   https://de-la-empresa.
+2. Se pulsa Escanear. El motor recorre home, robots.txt,
+   sitemap y enlaces internos del mismo dominio.
+3. Sale un score técnico (0–100), tarjetas de problemas y
+   la lista de URLs.
+4. Se descarga:
+   - PDF  (botón rojo)  → resumen para dirección / propuesta.
+   - Excel (botón verde) → listado completo para el webmaster.
+5. Se puede dejar escaneo automático. Si hay varios sitios,
+   hacen cola: uno a la vez, se puede reordenar o adelantar.
+
+Sitios modernos (React, Next, Vue): el motor abre un navegador
+invisible cuando la página llega vacía, para leer el HTML que
+sí ve Google después de ejecutar JavaScript.
+
+
+============================================================
+5. PARA MARKETING Y VENTAS
+============================================================
+
+NOMBRE PARA OFERTAS
+  Monitor técnico SEO  (evitar “plataforma de inteligencia
+  artificial” o “el Ahrefs mexicano”: no lo somos).
+
+FRASE CORTA (elevator)
+  “Te decimos si tu web se puede rastrear e indexar, con un
+   PDF que puedes mandar a dirección y un Excel para TI.
+   El recorrido se queda en tu red, no en la nube de un
+   proveedor extranjero.”
+
+A QUIÉN SE LO OFRECEMOS
+  - Empresas industriales / B2B con catálogo grande.
+  - Quien ya tiene agencia de ads o SEO y quiere un diagnóstico
+    técnico independiente.
+  - Quien no puede (o no quiere) mandar el crawl de su web
+    a un SaaS en otro país.
+  - Prospectos: Logicbus escanea su https:// en una org de
+    demostración y manda el informe. Eso abre la conversación.
+
+CÓMO ARMAR LA OFERTA (sin inventar precios aquí)
+  A) Diagnóstico puntual
+     Un escaneo + reunión de 30–45 min + PDF y Excel.
+     Sirve para cerrar o para un “antes de contratar SEO”.
+  B) Monitor mensual
+     Runtime en su planta + cadencia semanal o mensual +
+     un informe cuando el score baja o aparecen 404 nuevos.
+  C) Demo de ventas (interno Logicbus)
+     En Administración → Demostraciones: se crea una org
+     propia, se pega el origin del prospecto, se escanea y
+     se comparte el PDF. No es un cliente facturado.
+
+QUÉ LLEVAR A LA REUNIÓN
+  - El PDF (una o dos hojas de resumen + hallazgos).
+  - 3 ejemplos concretos del Excel: un 404, un title vacío,
+    una URL del sitemap que no abre.
+  - La frase: “esto lo vimos ayer en SU dominio, no es un
+    reporte genérico”.
+
+OBJECIONES FRECUENTES
+
+  “Ya tenemos Google Analytics / Search Console.”
+  Bien. Eso mide tráfico y lo que Google ya vio. Nosotros
+  recorremos el sitio como un robot y encontramos roturas
+  ANTES o ADEMÁS de lo que sale en Search Console.
+
+  “Ya pagamos Ahrefs / Semrush.”
+  Esas herramientas son muy buenas para keywords y enlaces.
+  Esto cubre el hueco técnico y, si aplica, el dato se queda
+  en su LAN. Se complementan; no las reemplazamos.
+
+  “¿Van a meter un agente en nuestro servidor?”
+  Un contenedor Docker en un PC de la red interna, puerto
+  8080 solo en LAN. Login con Google. El historial del crawl
+  no sube a Firebase.
+
+  “Nuestra web es de esas que cargan con JavaScript.”
+  Justamente: el monitor puede renderizar esas páginas.
+  En el sitio se deja “Páginas con JavaScript” en automático
+  (recomendado) o siempre.
+
+  “¿Cuánto tarda?”
+  Un sitio chico, minutos. Un catálogo de miles de URLs,
+  decenas de minutos. Si se fuerza render JS en todas las
+  páginas, más.
+
+NO DECIR
+  - “Les subimos el ranking.”
+  - “Es inteligencia artificial.”
+  - “Reemplaza Search Console.”
+  - “Medimos velocidad tipo PageSpeed.”
+  - Garantías de posición o de ventas.
+
+
+============================================================
+6. QUÉ ENTREGA EL INFORME (para copiar a una propuesta)
+============================================================
+
+- Score técnico del sitio.
+- Mezcla HTTP: páginas OK, redirecciones, no encontradas,
+  errores de servidor.
+- Hallazgos on-page: title, H1, meta, ALT, canonical.
+- Mapa de indexación: noindex, sitemap vs crawl, huérfanas,
+  contradicciones (en el XML y a la vez noindex o 404).
+- Comparación con el escaneo anterior (si ya hubo uno):
+  404 nuevos, 404 recuperados, titles que cambiaron.
+- PDF ejecutivo y Excel de detalle.
+
+
+============================================================
+7. CÓMO PEDIR UNA DEMO INTERNA (Logicbus)
+============================================================
+
+1. Entrar a la cáscara web con Google.
+2. Administración → Demostraciones → crear org (ej. “Demo Acme”).
+3. Agregar el https:// del prospecto.
+4. Escanear. Esperar a que termine.
+5. En la auditoría: botón verde Excel, botón rojo PDF.
+6. Enviar el PDF al comercial y, si el prospecto es técnico,
+   el Excel.
+
+Si el sitio no muestra titles, en Editar sitio dejar
+“Páginas con JavaScript” en Automático o Siempre y volver
+a escanear.
+
+
+============================================================
+8. CONTACTO DE PRODUCTO (interno)
+============================================================
+
+Repo: https://github.com/beracoechea/SEO
+Instalación y Docker: docs/INSTALACION.md
+Versiones y publicación: docs/VERSIONES_GITHUB.md
+
+Si marketing necesita una captura o un PDF de ejemplo,
+usar una org de Demostraciones con un sitio público real
+del prospecto (con permiso) o un origin de Logicbus.
+No uses datos de un cliente facturado como “demo genérica”
+sin avisar.

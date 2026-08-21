@@ -14,6 +14,9 @@ El versionado sigue [SemVer](https://semver.org/lang/es/).
 - Burbuja de cupo sitios usados/permitidos y banner de escaneo en progreso (llenado tipo agua) en la home de la org.
 - Botones de volver más visibles e interruptor ES/EN con el idioma activo resaltado.
 - Exportar informe Excel (resumen, gráficos HTTP/hallazgos y listado de URLs con saltos, destino, status y hallazgos).
+- Exportar informe PDF (resumen, gráficos y las URLs con más hallazgos; el listado completo sigue en Excel). Botones compactos: Excel verde y PDF rojo, con icono de descarga.
+- Render de páginas JavaScript (Chromium): por sitio en automático, siempre o solo HTML del servidor.
+- Ficha en lenguaje claro para marketing y ventas: `docs/PARA_MARKETING.txt`.
 - Mapa de indexación: `X-Robots-Tag` + meta robots, sitemap vs crawl, huérfanas, sitemap en 404, sitemap bloqueado por robots.txt, noindex en el XML, URLs fuera del sitemap.
 - Diff entre escaneos: 404 nuevos/recuperados, noindex nuevo, titles cambiados, URLs añadidas o que ya no se piden.
 - Cáscara web: login Google, i18n es/en, orgs, sitios, equipo.
@@ -46,7 +49,7 @@ El versionado sigue [SemVer](https://semver.org/lang/es/).
 - El crawl pide varias URLs en paralelo (~8–12/s) para sitios grandes (sitemap de miles de URLs).
 - Sitios detrás de Cloudflare (challenge “Just a moment…”) se piden con un cliente que el WAF suele dejar pasar.
 - Ya no se muestra el banner naranja de “un escaneo a la vez”; si un sitio está ocupado, Escanear en otro lo deja en cola.
-- En desarrollo, si el motor de 8080 no tiene cola, Vite lo reinicia al arrancar `npm run dev`.
+- En desarrollo, si el motor de 8080 no tiene cola o render JS, Vite lo reinicia al arrancar `npm run dev`.
 
 ### Fixed
 

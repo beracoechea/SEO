@@ -4,7 +4,7 @@ import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { BackLink } from "../components/BackLink";
 import { IconBtn } from "../components/IconBtn";
-import { createSite, deleteSite, getOrg, getSite, isPrivateOrigin, updateSite } from "../lib/db";
+import { createSite, deleteSite, getOrg, getSite, isPrivateOrigin, updateSite, type RenderJs } from "../lib/db";
 import { isFirestoreNetworkError } from "../lib/firebase";
 import { isAdminPath, orgHomePath, sitePath } from "../lib/paths";
 import { listSiteSummaries, resolvedRuntimeUrl } from "../lib/runtime";
@@ -27,6 +27,7 @@ export function NewSitePage() {
   const [maxPages, setMaxPages] = useState(20000);
   const [maxDepth, setMaxDepth] = useState(8);
   const [scanEvery, setScanEvery] = useState<"off" | "day" | "3days" | "week" | "month">("off");
+  const [renderJs, setRenderJs] = useState<RenderJs>("auto");
   const [exclude, setExclude] = useState("");
   const [templates, setTemplates] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -47,6 +48,7 @@ export function NewSitePage() {
         setMaxPages(site.maxPages);
         setMaxDepth(site.maxDepth);
         setScanEvery(site.scanEvery || "off");
+        setRenderJs(site.renderJs || "auto");
         setExclude(site.excludePatterns.join("\n"));
         setTemplates(site.templateUrls.join("\n"));
       })
@@ -99,6 +101,7 @@ export function NewSitePage() {
       maxPages,
       maxDepth,
       scanEvery,
+      renderJs,
       excludePatterns: lines(exclude),
       templateUrls: lines(templates).slice(0, 100),
     };
@@ -178,6 +181,15 @@ export function NewSitePage() {
           </select>
         </label>
         <p className="muted">{t("sites.scanHint")}</p>
+        <label>
+          {t("sites.renderJs")}
+          <select value={renderJs} onChange={(e) => setRenderJs(e.target.value as RenderJs)}>
+            <option value="auto">{t("sites.renderAuto")}</option>
+            <option value="on">{t("sites.renderOn")}</option>
+            <option value="off">{t("sites.renderOff")}</option>
+          </select>
+        </label>
+        <p className="muted">{t("sites.renderHint")}</p>
         <label>
           {t("sites.exclude")}
           <textarea rows={4} value={exclude} onChange={(e) => setExclude(e.target.value)} />

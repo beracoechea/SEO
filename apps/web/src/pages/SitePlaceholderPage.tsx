@@ -63,7 +63,7 @@ export function SitePlaceholderPage() {
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState<PageFilter>("all");
   const [hint, setHint] = useState<PageFilter | null>(null);
-  const [exporting, setExporting] = useState(false);
+  const [exporting, setExporting] = useState<"xlsx" | "pdf" | null>(null);
 
   const runtime = resolvedRuntimeUrl(org?.runtimeBaseUrl);
 
@@ -117,6 +117,7 @@ export function SitePlaceholderPage() {
         maxPages: Math.min(site.maxPages || 20000, org.maxPagesPerSite || 20000),
         maxDepth: site.maxDepth || 8,
         scanEvery: site.scanEvery,
+        renderJs: site.renderJs,
       });
       await loadSummary();
     } catch (e) {
@@ -134,57 +135,37 @@ export function SitePlaceholderPage() {
     document.getElementById("url-feed")?.scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
-  async function exportXlsx() {
+  async function exportReport(kind: "xlsx" | "pdf") {
     if (!pages.length) return;
-    setExporting(true);
+    setExporting(kind);
     setError(null);
     try {
-      const { downloadAuditWorkbook } = await import("../lib/exportReport");
-      await downloadAuditWorkbook({
+      const { buildReportCopy } = await import("../lib/exportReport");
+      const copy = buildReportCopy((key) => t(key));
+      const payload = {
         siteName: site?.name || t("audit.title"),
         origin: site?.origin || "",
         crawl,
         pages,
-        issueName: (code) => t(`issue.${code}`, { defaultValue: code }),
-        copy: {
-          summary: t("export.summary"),
-          http: t("export.http"),
-          findings: t("export.findings"),
-          urls: t("export.urls"),
-          site: t("sites.name"),
-          origin: t("sites.origin"),
-          score: t("audit.score"),
-          pages: t("audit.pages"),
-          sitemap: t("audit.sitemap"),
-          avgMs: t("audit.avgMs"),
-          metric: t("export.metric"),
-          value: t("export.value"),
-          http200: t("audit.http200"),
-          http3xx: t("audit.http3xx"),
-          http4xx: t("audit.http4xx"),
-          http5xx: t("audit.http5xx"),
-          critical: t("audit.critical"),
-          warning: t("audit.warning"),
-          ok: t("audit.ok"),
-          issue: t("audit.issues"),
-          count: t("export.count"),
-          url: t("sites.origin"),
-          finalUrl: t("audit.landedAt"),
-          hops: t("export.hops"),
-          redirectStatus: t("export.redirectStatus"),
-          status: t("export.status"),
-          ms: t("audit.avgMs"),
-          title: t("export.titleCol"),
-          h1: "H1",
-          issues: t("audit.issues"),
-          chartHttp: t("audit.distribution"),
-          chartFindings: t("audit.issues"),
-        },
-      });
+        issueName: (code: string) => t(`issue.${code}`, { defaultValue: code }),
+        copy,
+      };
+      if (kind === "pdf") {
+        const { downloadAuditPdf } = await import("../lib/exportPdf");
+        await downloadAuditPdf({
+          ...payload,
+          title: t("export.pdfTitle"),
+          dateLabel: t("export.date", { date: new Date().toLocaleDateString() }),
+          truncatedNote: t("export.pdfTruncated"),
+        });
+      } else {
+        const { downloadAuditWorkbook } = await import("../lib/exportReport");
+        await downloadAuditWorkbook(payload);
+      }
     } catch {
       setError(t("export.failed"));
     } finally {
-      setExporting(false);
+      setExporting(null);
     }
   }
 
@@ -272,14 +253,28 @@ export function SitePlaceholderPage() {
               icon={<Pencil size={18} />}
             />
             {pages.length > 0 ? (
-              <IconBtn
-                label={exporting ? t("export.exporting") : t("export.excel")}
-                tone="sky"
-                showLabel
-                disabled={exporting || running}
-                onClick={() => void exportXlsx()}
-                icon={<Download size={18} />}
-              />
+              <span className="row" style={{ flexWrap: "nowrap", gap: 10 }}>
+                <IconBtn
+                  label={t("export.excel")}
+                  title={exporting === "xlsx" ? t("export.exporting") : t("export.excelAction")}
+                  aria-label={exporting === "xlsx" ? t("export.exporting") : t("export.excelAction")}
+                  tone="accent"
+                  showLabel
+                  disabled={Boolean(exporting) || running}
+                  onClick={() => void exportReport("xlsx")}
+                  icon={<Download size={18} />}
+                />
+                <IconBtn
+                  label={t("export.pdf")}
+                  title={exporting === "pdf" ? t("export.exporting") : t("export.pdfAction")}
+                  aria-label={exporting === "pdf" ? t("export.exporting") : t("export.pdfAction")}
+                  tone="danger"
+                  showLabel
+                  disabled={Boolean(exporting) || running}
+                  onClick={() => void exportReport("pdf")}
+                  icon={<Download size={18} />}
+                />
+              </span>
             ) : null}
           </div>
         </div>

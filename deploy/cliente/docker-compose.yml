@@ -17,6 +17,7 @@ services:
       DATA_DIR: /app/data
     volumes:
       - runtime-data:/app/data
+    shm_size: "512mb"
     healthcheck:
       test:
         [

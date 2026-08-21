@@ -115,6 +115,7 @@ export function AdminOrgDetailPage() {
         maxPages: Math.min(s.maxPages || 20000, org.maxPagesPerSite || 20000),
         maxDepth: s.maxDepth || 8,
         scanEvery: s.scanEvery || "off",
+        renderJs: s.renderJs || "auto",
       })),
       org.defaultRateLimit || 10,
     )
@@ -141,6 +142,7 @@ export function AdminOrgDetailPage() {
         maxPages: Math.min(site.maxPages || 20000, org.maxPagesPerSite || 20000),
         maxDepth: site.maxDepth || 8,
         scanEvery: site.scanEvery,
+        renderJs: site.renderJs,
       });
       await refreshScores();
     } catch (e) {

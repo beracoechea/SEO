@@ -13,12 +13,14 @@ Hay **dos artefactos**, no uno:
 
 | Artefacto | Dónde corre en producción | Qué contiene |
 |-----------|---------------------------|--------------|
-| Cáscara web (`apps/web`) | Firebase Hosting (HTTPS) | Login Google, orgs, equipo, links de sitios, consola `/admin` (clientes + demostraciones) |
-| Runtime (`apps/runtime`) | Servidor / PC de cada empresa (LAN) | Crawler, SQLite, historial |
+| Cáscara web (`apps/web`) | Firebase Hosting (HTTPS) | Login Google, orgs, equipo, links de sitios, consola `/admin` (clientes + demostraciones), export Excel/PDF |
+| Runtime (`apps/runtime`) | Servidor / PC de cada empresa (LAN) | Crawler (HTTP + render JS), SQLite, historial |
 
 - Publicar la web **no** despliega el crawler en las oficinas.
 - Actualizar el runtime es un release Docker / zip que cada org instala.
 - Firebase Auth + Firestore son el control plane compartido (usuarios y links). El proyecto Firebase de **producción** no se mezcla con el de desarrollo.
+- El historial del crawl no sube a Firebase.
+- Ficha comercial (sin jerga de instalación): [PARA_MARKETING.txt](PARA_MARKETING.txt).
 
 ---
 

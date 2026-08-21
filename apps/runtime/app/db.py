@@ -51,7 +51,8 @@ CREATE TABLE IF NOT EXISTS snapshots (
   via_link INTEGER DEFAULT 0,
   via_sitemap INTEGER DEFAULT 0,
   robots_header TEXT,
-  fetched INTEGER DEFAULT 1
+  fetched INTEGER DEFAULT 1,
+  rendered INTEGER DEFAULT 0
 );
 CREATE INDEX IF NOT EXISTS idx_snaps_crawl ON snapshots(crawl_id);
 CREATE INDEX IF NOT EXISTS idx_crawls_site ON crawls(site_id, started_at);
@@ -64,7 +65,8 @@ CREATE TABLE IF NOT EXISTS site_jobs (
   max_depth INTEGER NOT NULL DEFAULT 8,
   interval TEXT NOT NULL DEFAULT 'off',
   next_run_at TEXT,
-  updated_at TEXT NOT NULL
+  updated_at TEXT NOT NULL,
+  render_js TEXT NOT NULL DEFAULT 'auto'
 );
 CREATE TABLE IF NOT EXISTS crawl_queue (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -96,6 +98,10 @@ EXTRA_COLS = {
         "via_sitemap": "INTEGER DEFAULT 0",
         "robots_header": "TEXT",
         "fetched": "INTEGER DEFAULT 1",
+        "rendered": "INTEGER DEFAULT 0",
+    },
+    "site_jobs": {
+        "render_js": "TEXT NOT NULL DEFAULT 'auto'",
     },
     "crawl_queue": {
         "sort": "INTEGER DEFAULT 0",

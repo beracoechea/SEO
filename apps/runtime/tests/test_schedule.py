@@ -46,6 +46,7 @@ def test_queue_and_schedule_due(tmp_path, monkeypatch):
     assert job is not None
     assert job["site_id"] == "a"
     assert job["origin"] == "https://www.example.com"
+    assert job["render_js"] == "auto"
     assert pop_next() is None
 
 
@@ -125,3 +126,26 @@ def test_schedule_put_and_queue_via_api(tmp_path, monkeypatch):
         overview = client.get("/api/sites").json()
         assert "queue" in overview
         assert "schedules" in overview
+
+
+def test_schedule_keeps_render_js(tmp_path, monkeypatch):
+    monkeypatch.setenv("DATA_DIR", str(tmp_path))
+    monkeypatch.setenv("ALLOW_ANON", "1")
+    monkeypatch.setenv("CRAWL_NO_DELAY", "1")
+    init_db()
+    replace_sites(
+        [
+            {
+                "id": "spa",
+                "origin": "https://www.example.com",
+                "scanEvery": "off",
+                "renderJs": "on",
+            }
+        ]
+    )
+    from app.schedule import enqueue
+
+    assert enqueue("spa")
+    job = pop_next()
+    assert job is not None
+    assert job["render_js"] == "on"

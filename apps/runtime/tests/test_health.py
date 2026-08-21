@@ -11,6 +11,7 @@ def test_health_ok(monkeypatch):
         body = res.json()
         assert body["ok"] is True
         assert body["queue"] is True
+        assert body["js"] is True
         assert body["org_id_suffix"] == "abcdef"
         assert "version" in body
 

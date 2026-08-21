@@ -11,6 +11,8 @@ La guía completa (desarrollo, Docker en planta, y el **tester que bloquea un pu
 
 **[docs/INSTALACION.md](docs/INSTALACION.md)**
 
+Para explicar el producto a clientes o a marketing (sin jerga de instalación): **[docs/PARA_MARKETING.txt](docs/PARA_MARKETING.txt)**.
+
 Versiones, tags y `firebase deploy`: **[docs/VERSIONES_GITHUB.md](docs/VERSIONES_GITHUB.md)**.
 
 ## Arranque mínimo (desarrollo)

@@ -55,6 +55,7 @@ async def pump_queue() -> None:
             rate=float(nxt["rate"] or 10),
             max_pages=int(nxt["max_pages"] or 20000),
             max_depth=int(nxt["max_depth"] or 8),
+            render_js=nxt.get("render_js") or "auto",
         )
 
 
@@ -155,6 +156,7 @@ class CrawlIn(BaseModel):
     maxPages: int = 20000
     maxDepth: int = 8
     scanEvery: str | None = None
+    renderJs: str = "auto"
 
 
 class ScheduleSiteIn(BaseModel):
@@ -165,6 +167,7 @@ class ScheduleSiteIn(BaseModel):
     maxPages: int = 20000
     maxDepth: int = 8
     scanEvery: str = "off"
+    renderJs: str = "auto"
 
 
 class ScheduleIn(BaseModel):
@@ -179,7 +182,7 @@ class QueueReorderIn(BaseModel):
 def health() -> dict[str, str | bool]:
     org = os.getenv("ORG_ID", "")
     suffix = org[-6:] if len(org) >= 6 else org
-    return {"ok": True, "version": __version__, "org_id_suffix": suffix, "queue": True}
+    return {"ok": True, "version": __version__, "org_id_suffix": suffix, "queue": True, "js": True}
 
 
 @app.get("/api/me")
@@ -248,6 +251,7 @@ async def create_crawl(
             max_pages=body.maxPages,
             max_depth=body.maxDepth,
             interval=body.scanEvery,
+            render_js=body.renderJs,
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
@@ -272,6 +276,7 @@ async def create_crawl(
         rate=body.rateLimit,
         max_pages=body.maxPages,
         max_depth=body.maxDepth,
+        render_js=body.renderJs,
     )
     if launched.get("mode") == "sync":
         try:
@@ -295,7 +300,7 @@ def site_summary(site_id: str, user: dict = Depends(require_user)) -> dict:
             return {"ok": True, "crawl": None, "pages": []}
         snaps = con.execute(
             """SELECT url, status, title, h1, meta, canonical, score, issues, depth, ms, final_url, robots_meta, hops, redirect_status,
-                      in_sitemap, via_link, via_sitemap, robots_header, fetched
+                      in_sitemap, via_link, via_sitemap, robots_header, fetched, rendered
                FROM snapshots WHERE crawl_id=? ORDER BY depth, url""",
             (crawl["id"],),
         ).fetchall()

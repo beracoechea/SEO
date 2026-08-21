@@ -13,6 +13,8 @@ El cliente **no** publica la web. El cliente **sí** levanta el runtime con Dock
 
 Repositorio: https://github.com/beracoechea/SEO
 
+Ficha para ventas y personas no técnicas: **[PARA_MARKETING.txt](PARA_MARKETING.txt)**.
+
 ---
 
 ## 0. Qué tienes que tener instalado
@@ -86,6 +88,7 @@ cd apps\runtime
 python -m venv .venv
 .venv\Scripts\activate
 pip install -r requirements-dev.txt
+playwright install chromium
 copy .env.example .env
 ```
 
@@ -121,15 +124,15 @@ Parar: `docker compose down` (el volumen `runtime-data` se conserva; no borres l
 
 En **Sitios**, pulsa **Escanear** en la tarjeta. El motor pide de verdad esa web: home, `robots.txt`, sitemap (cuenta y URLs) y sigue enlaces internos del mismo host hasta el tope de la org (por defecto 20 000 URLs, varias peticiones en paralelo). Title, H1, meta, canonical, ALT, tiempos y score salen de esas respuestas, no de un stub.
 
-Si el sitio está detrás de Cloudflare, el runtime usa un cliente que suele pasar el challenge; un corte de conexión no tira el escaneo entero. Solo corre **un** crawl a la vez. Los demás sitios quedan en la **cola** (Sitios): se pueden subir, bajar, sacar o **ejecutar ahora** (corta el que corre y el interrumpido pasa al siguiente puesto). Escanear se apaga si ese sitio ya está en cola. En cada sitio puedes programar escaneo automático (diario, cada 3 días, semanal o mensual); el PC/Docker del runtime tiene que seguir encendido. Un sitio grande (p. ej. ~14 000 URLs) tarda del orden de **decenas de minutos**, no una jornada.
+Si el sitio está detrás de Cloudflare, el runtime usa un cliente que suele pasar el challenge; un corte de conexión no tira el escaneo entero. Sitios SPA (React, Next, Vue) se re-piden con Chromium cuando el HTML llega vacío. Solo corre **un** crawl a la vez. Los demás sitios quedan en la **cola** (Sitios): se pueden subir, bajar, sacar o **ejecutar ahora** (corta el que corre y el interrumpido pasa al siguiente puesto). Escanear se apaga si ese sitio ya está en cola. En cada sitio puedes programar escaneo automático (diario, cada 3 días, semanal o mensual); el PC/Docker del runtime tiene que seguir encendido. Un sitio grande (p. ej. ~14 000 URLs) tarda del orden de **decenas de minutos**, no una jornada. Con render JS en **siempre**, espera más.
 
 El historial queda en SQLite local. No es Core Web Vitals de laboratorio.
 
-En **Agregar/Editar sitio** está **Escaneo automático**. Si al abrir Sitios ves 404 en `/api/schedule` o 409 al encolar, el motor de 8080 es una versión vieja: `npm run dev` lo detecta y lo reinicia; o para el proceso de 8080 y vuelve a arrancar.
+En **Agregar/Editar sitio** está **Escaneo automático** y **Páginas con JavaScript** (automático por defecto: Chromium solo si el HTML llega vacío o hay un challenge). Si al abrir Sitios ves 404 en `/api/schedule` o 409 al encolar, el motor de 8080 es una versión vieja: `npm run dev` lo detecta (falta cola o render JS) y lo reinicia; o para el proceso de 8080 y vuelve a arrancar.
 
 ### 1.7 Demostraciones (operador de plataforma)
 
-En `/admin` → **Demostraciones** el operador crea orgs propias (no son un cliente). Ahí registra un `https://` de un prospecto, lo escanea y exporta Excel para la propuesta. Los **Clientes** siguen en la pestaña de organizaciones (cupos y usuarios).
+En `/admin` → **Demostraciones** el operador crea orgs propias (no son un cliente). Ahí registra un `https://` de un prospecto, lo escanea y en la auditoría descarga el informe: botón verde **Excel** (listado completo) y botón rojo **PDF** (resumen para la propuesta). Los **Clientes** siguen en la pestaña de organizaciones (cupos y usuarios). Cómo hablar del servicio: [PARA_MARKETING.txt](PARA_MARKETING.txt).
 
 ---
 
@@ -174,11 +177,7 @@ RUNTIME_VERSION=0.1.0
 
 `CORS_ORIGIN` **tiene** que ser el origen HTTPS de la cáscara. Si queda `localhost`, el navegador del usuario no podrá llamar al runtime.
 
-4. Levantar:
-
-```powershell
-docker compose -f deploy\cliente\docker-compose.yml --env-file deploy\cliente\.env up -d --build
-```
+La primera vez el build baja Chromium (render JS). La imagen queda más grande que un runtime solo HTTP; es normal.
 
 5. Probar en ese mismo PC: http://localhost:8080/api/health
 
@@ -274,7 +273,7 @@ Después de verde en Actions:
 
 1. Login Google en la URL que vas a publicar.
 2. Crear org, agregar un sitio `https://…`, invitar un segundo Gmail y confirmar que **ve el mismo origin**.
-3. `/admin` (con `platformAdmins`) lista **Clientes**. En **Demostraciones** crea una org tuya, agrega un `https://` de prospecto, **Escanear** y exporta Excel. Restringir un usuario de un cliente y confirmar que ya no entra.
+3. `/admin` (con `platformAdmins`) lista **Clientes**. En **Demostraciones** crea una org tuya, agrega un `https://` de prospecto, **Escanear** y descarga Excel (verde) y PDF (rojo). Restringir un usuario de un cliente y confirmar que ya no entra.
 4. Abrir la org: Sitios → **Escanear** en un origin. El anillo y la tabla se llenan con URLs reales (títulos distintos por página).
 5. No hay `.env` en el commit (`git status`).
 
@@ -305,5 +304,6 @@ Detalle de tags y Firebase Hosting: [VERSIONES_GITHUB.md](VERSIONES_GITHUB.md).
 | Google cierra el popup | Authorized domains; el origen debe ser `localhost` o HTTPS |
 | No aparece Administración | Falta `platformAdmins/{tuUid}` |
 | Runtime unreachable | Docker Running, IP LAN, firewall, `CORS_ORIGIN` = origen de la cáscara |
+| Sitio SPA sin titles | En el sitio, **Páginas con JavaScript** en Automático o Siempre; `playwright install chromium` en el venv |
 | `docker compose` pide `.env` | Copiaste el example a `.env` y llenaste `ORG_ID` |
 | Push rechazado | `.\scripts\verify.ps1` en rojo; lee el `FAIL` |

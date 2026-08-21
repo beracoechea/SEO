@@ -4,6 +4,7 @@ import json
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
+from app.browser import normalize_render_js
 from app.db import connect
 from app.parse import assert_public_http_url
 
@@ -56,6 +57,7 @@ def remember_site(
     max_pages: int = 20000,
     max_depth: int = 8,
     interval: str | None = None,
+    render_js: str | None = None,
 ) -> None:
     origin = origin.rstrip("/")
     assert_public_http_url(origin + "/")
@@ -64,6 +66,9 @@ def remember_site(
     try:
         row = con.execute("SELECT interval, next_run_at FROM site_jobs WHERE site_id=?", (site_id,)).fetchone()
         keep_interval = normalize_interval(interval if interval is not None else (row["interval"] if row else "off"))
+        keep_js = normalize_render_js(
+            render_js if render_js is not None else (dict(row).get("render_js") if row else "auto")
+        )
         next_run = row["next_run_at"] if row else None
         if keep_interval == "off":
             next_run = None
@@ -78,8 +83,8 @@ def remember_site(
             nxt = add_interval(base, keep_interval) if base else _now()
             next_run = _iso(nxt)
         con.execute(
-            """INSERT INTO site_jobs(site_id, origin, template_urls, rate, max_pages, max_depth, interval, next_run_at, updated_at)
-               VALUES (?,?,?,?,?,?,?,?,?)
+            """INSERT INTO site_jobs(site_id, origin, template_urls, rate, max_pages, max_depth, interval, next_run_at, updated_at, render_js)
+               VALUES (?,?,?,?,?,?,?,?,?,?)
                ON CONFLICT(site_id) DO UPDATE SET
                  origin=excluded.origin,
                  template_urls=excluded.template_urls,
@@ -88,7 +93,8 @@ def remember_site(
                  max_depth=excluded.max_depth,
                  interval=excluded.interval,
                  next_run_at=excluded.next_run_at,
-                 updated_at=excluded.updated_at""",
+                 updated_at=excluded.updated_at,
+                 render_js=excluded.render_js""",
             (
                 site_id,
                 origin,
@@ -99,6 +105,7 @@ def remember_site(
                 keep_interval,
                 next_run,
                 _iso(_now()),
+                keep_js,
             ),
         )
         con.commit()
@@ -122,6 +129,7 @@ def replace_sites(sites: list[dict[str, Any]]) -> None:
             max_pages=int(raw.get("maxPages") or 20000),
             max_depth=int(raw.get("maxDepth") or 8),
             interval=normalize_interval(str(raw.get("scanEvery") or "off")),
+            render_js=normalize_render_js(str(raw.get("renderJs") or "auto")),
         )
     con = connect()
     try:
@@ -311,6 +319,7 @@ def pop_next() -> dict[str, Any] | None:
             "rate": job["rate"],
             "max_pages": job["max_pages"],
             "max_depth": job["max_depth"],
+            "render_js": normalize_render_js(dict(job).get("render_js") or "auto"),
             "reason": row["reason"],
         }
     finally:

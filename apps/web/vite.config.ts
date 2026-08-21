@@ -44,11 +44,11 @@ function stopPid(pid: string) {
   }
 }
 
-async function runtimeHealth(): Promise<{ ok: boolean; queue?: boolean }> {
+async function runtimeHealth(): Promise<{ ok: boolean; queue?: boolean; js?: boolean }> {
   try {
     const res = await fetch("http://127.0.0.1:8080/api/health");
     if (!res.ok) return { ok: false };
-    return (await res.json()) as { ok: boolean; queue?: boolean };
+    return (await res.json()) as { ok: boolean; queue?: boolean; js?: boolean };
   } catch {
     return { ok: false };
   }
@@ -65,11 +65,11 @@ function runtimeDevPlugin(): Plugin {
       const python = existsSync(venvPy) ? venvPy : existsSync(venvPyNix) ? venvPyNix : "python";
       const start = async () => {
         const health = await runtimeHealth();
-        if (health.ok && health.queue) return;
-        if (health.ok && !health.queue) {
+        if (health.ok && health.queue && health.js) return;
+        if (health.ok && (!health.queue || !health.js)) {
           const pid = pidOnPort(8080);
           if (pid) {
-            console.warn("[runtime] motor sin cola; se reinicia para cargar el código nuevo");
+            console.warn("[runtime] motor desactualizado; se reinicia para cargar el código nuevo");
             stopPid(pid);
             await new Promise((r) => setTimeout(r, 800));
           }
@@ -106,7 +106,7 @@ export default defineConfig(({ mode }) => {
     envDir: webRoot,
     define,
     optimizeDeps: {
-      include: ["exceljs"],
+      include: ["exceljs", "jspdf", "jspdf-autotable"],
     },
     server: {
       port: 5173,

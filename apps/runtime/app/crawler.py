@@ -18,6 +18,7 @@ from uuid import uuid4
 
 import httpx
 
+from app.browser import JsRenderer, js_crawl_enabled, needs_js_render, normalize_render_js
 from app.db import connect
 from app.indexation import robots_directives
 from app.parse import (
@@ -220,7 +221,18 @@ def _is_htmlish(content_type: str) -> bool:
 
 
 class Fetch:
-    __slots__ = ("status", "text", "hops", "final", "ms", "content_type", "content", "redirect_status", "robots_tag")
+    __slots__ = (
+        "status",
+        "text",
+        "hops",
+        "final",
+        "ms",
+        "content_type",
+        "content",
+        "redirect_status",
+        "robots_tag",
+        "rendered",
+    )
 
     def __init__(
         self,
@@ -233,6 +245,7 @@ class Fetch:
         content: bytes,
         redirect_status: int = 0,
         robots_tag: str = "",
+        rendered: bool = False,
     ) -> None:
         self.status = status
         self.text = text
@@ -243,6 +256,7 @@ class Fetch:
         self.content = content
         self.redirect_status = redirect_status
         self.robots_tag = robots_tag
+        self.rendered = rendered
 
 
 def _max_retries(status: int) -> int:
@@ -316,6 +330,39 @@ async def _get(client: httpx.AsyncClient, url: str) -> Fetch:
             await asyncio.sleep(wait)
         last = await _get_once(client, url)
     return last
+
+
+async def enrich_with_js(
+    fetch: Fetch,
+    url: str,
+    expect_html: bool,
+    mode: str,
+    renderer: JsRenderer | None,
+) -> Fetch:
+    if renderer is None or renderer.disabled:
+        return fetch
+    challenge = is_challenge_page(fetch.status, fetch.text)
+    if not needs_js_render(
+        mode,
+        status=fetch.status,
+        text=fetch.text,
+        expect_html=expect_html,
+        url=url,
+        challenge=challenge,
+    ):
+        return fetch
+    rendered = await renderer.render(fetch.final or url)
+    if rendered is None or not rendered.text:
+        return fetch
+    if challenge or fetch.status in {0, 403, 503}:
+        fetch.status = rendered.status or fetch.status
+    fetch.text = rendered.text
+    fetch.content_type = "text/html"
+    fetch.ms += rendered.ms
+    fetch.rendered = True
+    if rendered.final:
+        fetch.final = rendered.final
+    return fetch
 
 
 def _bucket(status: int, hops: int = 0) -> str | None:
@@ -396,8 +443,8 @@ def _record_page(
     if "canonical" in issues:
         counts["canonical"] = counts.get("canonical", 0) + 1
     con.execute(
-        """INSERT INTO snapshots(crawl_id, url, status, depth, title, h1, meta, canonical, score, issues, fetched_at, ms, final_url, robots_meta, hops, redirect_status, robots_header, fetched)
-           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,1)""",
+        """INSERT INTO snapshots(crawl_id, url, status, depth, title, h1, meta, canonical, score, issues, fetched_at, ms, final_url, robots_meta, hops, redirect_status, robots_header, fetched, rendered)
+           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,1,?)""",
         (
             crawl_id,
             url,
@@ -416,6 +463,7 @@ def _record_page(
             fetch.hops,
             fetch.redirect_status or 0,
             robots_header,
+            1 if fetch.rendered else 0,
         ),
     )
     links = parsed.get("links") if expect_html and fetch.status < 400 else []
@@ -447,8 +495,8 @@ def _finalize_indexation(
         if url in have:
             continue
         con.execute(
-            """INSERT INTO snapshots(crawl_id, url, status, depth, title, h1, meta, canonical, score, issues, fetched_at, ms, final_url, robots_meta, hops, redirect_status, in_sitemap, via_link, via_sitemap, robots_header, fetched)
-               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,0)""",
+            """INSERT INTO snapshots(crawl_id, url, status, depth, title, h1, meta, canonical, score, issues, fetched_at, ms, final_url, robots_meta, hops, redirect_status, in_sitemap, via_link, via_sitemap, robots_header, fetched, rendered)
+               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,0,0)""",
             (
                 crawl_id,
                 url,
@@ -560,6 +608,7 @@ async def run_crawl(
     max_pages: int = 200,
     max_depth: int = 8,
     crawl_id: str | None = None,
+    render_js: str = "auto",
 ) -> dict:
     origin = origin.rstrip("/")
     assert_public_http_url(origin + "/")
@@ -592,8 +641,14 @@ async def run_crawl(
         "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
         "Accept-Language": "es-MX,es;q=0.9,en-US;q=0.8,en;q=0.7",
     }
+    render_js = normalize_render_js(render_js)
+    renderer: JsRenderer | None = JsRenderer(UA) if js_crawl_enabled(render_js) else None
 
     try:
+        if renderer is not None:
+            await renderer.start()
+            if renderer.disabled:
+                renderer = None
         async with make_client(
             headers=headers,
             timeout=httpx.Timeout(20.0, connect=8.0),
@@ -713,6 +768,9 @@ async def run_crawl(
                 expect_html = "html" in fetch.content_type.lower() or fetch.text.strip().startswith("<")
                 if url.rstrip("/").endswith("robots.txt"):
                     expect_html = False
+                fetch = await enrich_with_js(fetch, url, expect_html, render_js, renderer)
+                if fetch.rendered:
+                    expect_html = True
                 async with lock:
                     if crawled >= cap:
                         return
@@ -781,6 +839,8 @@ async def run_crawl(
         con.commit()
         raise
     finally:
+        if renderer is not None:
+            await renderer.close()
         executor.shutdown(wait=False, cancel_futures=True)
         con.close()
 
