@@ -51,9 +51,19 @@ def _is_htmlish(content_type: str) -> bool:
 
 
 class Fetch:
-    __slots__ = ("status", "text", "hops", "final", "ms", "content_type", "content")
+    __slots__ = ("status", "text", "hops", "final", "ms", "content_type", "content", "redirect_status")
 
-    def __init__(self, status: int, text: str, hops: int, final: str, ms: int, content_type: str, content: bytes) -> None:
+    def __init__(
+        self,
+        status: int,
+        text: str,
+        hops: int,
+        final: str,
+        ms: int,
+        content_type: str,
+        content: bytes,
+        redirect_status: int = 0,
+    ) -> None:
         self.status = status
         self.text = text
         self.hops = hops
@@ -61,6 +71,7 @@ class Fetch:
         self.ms = ms
         self.content_type = content_type
         self.content = content
+        self.redirect_status = redirect_status
 
 
 async def _get(client: httpx.AsyncClient, url: str) -> Fetch:
@@ -68,6 +79,7 @@ async def _get(client: httpx.AsyncClient, url: str) -> Fetch:
     hops = 0
     current = url
     seen: set[str] = set()
+    first_3xx = 0
     t0 = time.perf_counter()
     last = Fetch(0, "", 0, url, 0, "", b"")
     while hops < 10:
@@ -78,11 +90,14 @@ async def _get(client: httpx.AsyncClient, url: str) -> Fetch:
             res = await client.get(current, follow_redirects=False)
         except httpx.HTTPError:
             ms = int((time.perf_counter() - t0) * 1000)
-            return Fetch(0, "", hops, current, ms, "", b"")
+            return Fetch(0, "", hops, current, ms, "", b"", first_3xx)
         ct = res.headers.get("content-type", "")
         text = res.text if _is_htmlish(ct) else ""
-        last = Fetch(res.status_code, text, hops, current, 0, ct, res.content)
+        last = Fetch(res.status_code, text, hops, current, 0, ct, res.content, first_3xx)
         if res.is_redirect:
+            if not first_3xx:
+                first_3xx = res.status_code
+                last.redirect_status = first_3xx
             loc = res.headers.get("location")
             if not loc:
                 break
@@ -91,22 +106,25 @@ async def _get(client: httpx.AsyncClient, url: str) -> Fetch:
             hops += 1
             last.hops = hops
             last.final = current
+            last.redirect_status = first_3xx
             continue
         if not last.text:
             last.text = res.text
         last.final = str(res.url) if res.url else current
+        last.redirect_status = first_3xx
         break
     last.ms = int((time.perf_counter() - t0) * 1000)
     last.hops = hops
+    last.redirect_status = first_3xx
     return last
 
 
-def _bucket(status: int) -> str:
+def _bucket(status: int, hops: int = 0) -> str:
     if status >= 500 or status == 0:
         return "5xx"
     if status >= 400:
         return "4xx"
-    if status >= 300:
+    if hops >= 1 or 300 <= status < 400:
         return "3xx"
     return "ok"
 
@@ -166,13 +184,13 @@ def _record_page(
     )
     level = classify_issues(issues)
     counts[level] = counts.get(level, 0) + 1
-    buckets[_bucket(fetch.status)] += 1
+    buckets[_bucket(fetch.status, fetch.hops)] += 1
     snaps.append((sc, depth))
     if expect_html and title:
         titles.append(title.strip().lower())
     con.execute(
-        """INSERT INTO snapshots(crawl_id, url, status, depth, title, h1, meta, canonical, score, issues, fetched_at, ms, final_url, robots_meta)
-           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+        """INSERT INTO snapshots(crawl_id, url, status, depth, title, h1, meta, canonical, score, issues, fetched_at, ms, final_url, robots_meta, hops, redirect_status)
+           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
         (
             crawl_id,
             url,
@@ -188,6 +206,8 @@ def _record_page(
             fetch.ms,
             fetch.final,
             robots_meta if expect_html else "",
+            fetch.hops,
+            fetch.redirect_status or 0,
         ),
     )
     links = parsed.get("links") if expect_html and fetch.status < 400 else []

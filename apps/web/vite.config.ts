@@ -67,6 +67,9 @@ export default defineConfig(({ mode }) => {
     plugins: [react(), runtimeDevPlugin()],
     envDir: webRoot,
     define,
+    optimizeDeps: {
+      include: ["exceljs"],
+    },
     server: {
       port: 5173,
       proxy: {

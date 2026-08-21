@@ -1,7 +1,8 @@
-import { Save, X } from "lucide-react";
+import { ArrowLeft, Save } from "lucide-react";
 import { useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
+import { BackLink } from "../components/BackLink";
 import { IconBtn } from "../components/IconBtn";
 import { createSite, isPrivateOrigin } from "../lib/db";
 
@@ -60,6 +61,7 @@ export function NewSitePage() {
 
   return (
     <div className="page stack">
+      <BackLink to={`/o/${orgId}`} label={t("nav.sites")} icon={<ArrowLeft size={20} />} />
       <h1>{t("sites.add")}</h1>
       {error ? <div className="banner warn">{error}</div> : null}
       <div className="card stack">
@@ -88,7 +90,6 @@ export function NewSitePage() {
           <textarea rows={4} value={templates} onChange={(e) => setTemplates(e.target.value)} />
         </label>
         <div className="row">
-          <IconBtn label={t("common.cancel")} onClick={() => navigate(-1)} icon={<X size={18} />} />
           <IconBtn
             label={t("sites.save")}
             tone="accent"

@@ -52,6 +52,8 @@ export type PageSnap = {
   ms?: number;
   final_url?: string | null;
   robots_meta?: string | null;
+  hops?: number;
+  redirect_status?: number;
 };
 
 export function resolvedRuntimeUrl(orgUrl?: string | null): string {

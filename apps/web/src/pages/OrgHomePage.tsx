@@ -100,18 +100,42 @@ export function OrgHomePage() {
 
   const atQuota = org ? sites.length >= org.maxSites : false;
   const canAdd = org?.status === "active" && !atQuota;
-  const scanningName = sites.find((s) => s.id === scanning)?.name;
+  const scanningSite = sites.find((s) => s.id === scanning);
+  const scanningRow = scanning ? scores[scanning] : undefined;
+  const scanPct = scanning
+    ? crawlProgressPercent(scanningRow || { status: "running", pages_crawled: 0 })
+    : 0;
 
   return (
     <div className="page stack">
-      <h1 style={{ margin: 0 }}>{t("nav.sites")}</h1>
-      {org ? (
-        <p className="muted">
-          {t("sites.quota", { have: sites.length, allowed: org.maxSites, pages: org.maxPagesPerSite.toLocaleString() })}
-        </p>
+      <div className="row" style={{ justifyContent: "space-between", alignItems: "flex-end" }}>
+        <h1 style={{ margin: 0 }}>{t("nav.sites")}</h1>
+        {org ? (
+          <div className={`quota-bubble${atQuota ? " is-full" : ""}`} title={t("sites.quotaReached")}>
+            <strong>
+              {sites.length}/{org.maxSites}
+            </strong>
+            <span>{t("sites.quotaShort")}</span>
+          </div>
+        ) : null}
+      </div>
+
+      {scanningSite ? (
+        <div className="scan-water" aria-live="polite">
+          <div className="scan-water-fill" style={{ height: `${Math.max(8, scanPct)}%` }} />
+          <div className="scan-water-copy">
+            <strong>{t("crawl.running")}</strong>
+            <span>
+              {scanningSite.name} · {scanPct}% ·{" "}
+              {t("crawl.scanning", {
+                have: scanningRow?.pages_crawled ?? 0,
+                cap: Math.max(scanningRow?.discovered || 0, scanningRow?.sitemap_urls || 0, scanningRow?.pages_crawled || 0),
+              })}
+            </span>
+          </div>
+        </div>
       ) : null}
-      {scanningName ? <div className="banner ok">{t("crawl.busyOther", { name: scanningName })}</div> : null}
-      {atQuota ? <div className="banner warn">{t("sites.quotaReached")}</div> : null}
+
       {error ? <div className="banner warn">{error}</div> : null}
       {sites.length === 0 ? (
         <div className="card muted">{t("sites.empty")}</div>

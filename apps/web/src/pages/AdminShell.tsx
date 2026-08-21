@@ -17,7 +17,7 @@ export function AdminShell() {
         <div className="avatar">{initial}</div>
         <strong className="app-bar-title">{t("admin.badge")}</strong>
         <LangSwitch />
-        <IconBtn label={t("admin.backToOrgs")} tone="sky" onClick={() => navigate("/orgs")} icon={<Building2 size={20} />} />
+        <IconBtn label={t("admin.backToOrgs")} tone="sky" showLabel onClick={() => navigate("/orgs")} icon={<Building2 size={20} />} />
         <IconBtn label={t("nav.logout")} tone="danger" onClick={() => void logout()} icon={<LogOut size={20} />} />
       </header>
       <div className="app-body">

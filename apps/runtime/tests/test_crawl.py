@@ -115,6 +115,58 @@ def test_site_crawl_follows_links(tmp_path, monkeypatch):
         assert summ["crawl"]["pages_crawled"] >= 3
 
 
+def test_redirect_lands_in_3xx_not_200(tmp_path, monkeypatch):
+    monkeypatch.setenv("DATA_DIR", str(tmp_path))
+    monkeypatch.setenv("ALLOW_ANON", "1")
+    monkeypatch.setenv("CRAWL_NO_DELAY", "1")
+    init_db()
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        path = request.url.path.rstrip("/") or "/"
+        if path.endswith("robots.txt"):
+            return httpx.Response(200, text="User-agent: *\nAllow: /\n", headers={"content-type": "text/plain"})
+        if "sitemap" in path:
+            return httpx.Response(404, text="missing")
+        if path == "/old":
+            return httpx.Response(301, headers={"location": "/new", "content-type": "text/html"})
+        if path == "/new":
+            return httpx.Response(
+                200,
+                text=(
+                    "<html><head><title>New</title><meta name='description' content='New'>"
+                    "<link rel='canonical' href='https://www.example.com/new'></head>"
+                    "<body><h1>New</h1></body></html>"
+                ),
+                headers={"content-type": "text/html"},
+            )
+        body = (
+            "<html><head><title>Home</title><meta name='description' content='Home'>"
+            "<link rel='canonical' href='https://www.example.com/'></head>"
+            "<body><h1>Home</h1><a href='/old'>Old</a></body></html>"
+        )
+        return httpx.Response(200, text=body, headers={"content-type": "text/html"})
+
+    transport = httpx.MockTransport(handler)
+    monkeypatch.setattr(
+        "app.crawler.make_client",
+        lambda **kw: httpx.AsyncClient(transport=transport, timeout=kw.get("timeout", 10.0), headers=kw.get("headers")),
+    )
+
+    with TestClient(app) as client:
+        res = client.post(
+            "/api/sites/redir/crawls",
+            json={"kind": "site", "origin": "https://www.example.com", "maxPages": 10},
+        )
+        assert res.status_code == 200, res.text
+        summ = client.get("/api/sites/redir/summary").json()
+        old = next(p for p in summ["pages"] if p["url"].rstrip("/").endswith("/old"))
+        assert old["hops"] >= 1
+        assert old["redirect_status"] == 301
+        assert old["status"] == 200
+        assert "redirect" in (old["issues"] or "")
+        assert summ["crawl"]["urls_3xx"] >= 1
+
+
 def test_crawl_rejects_private_origin(tmp_path, monkeypatch):
     monkeypatch.setenv("DATA_DIR", str(tmp_path))
     monkeypatch.setenv("ALLOW_ANON", "1")

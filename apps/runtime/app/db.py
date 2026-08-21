@@ -44,7 +44,9 @@ CREATE TABLE IF NOT EXISTS snapshots (
   fetched_at TEXT NOT NULL,
   ms INTEGER DEFAULT 0,
   final_url TEXT,
-  robots_meta TEXT
+  robots_meta TEXT,
+  hops INTEGER DEFAULT 0,
+  redirect_status INTEGER DEFAULT 0
 );
 CREATE INDEX IF NOT EXISTS idx_snaps_crawl ON snapshots(crawl_id);
 CREATE INDEX IF NOT EXISTS idx_crawls_site ON crawls(site_id, started_at);
@@ -63,6 +65,8 @@ EXTRA_COLS = {
         "ms": "INTEGER DEFAULT 0",
         "final_url": "TEXT",
         "robots_meta": "TEXT",
+        "hops": "INTEGER DEFAULT 0",
+        "redirect_status": "INTEGER DEFAULT 0",
     },
 }
 

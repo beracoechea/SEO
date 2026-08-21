@@ -157,7 +157,7 @@ def site_summary(site_id: str, user: dict = Depends(require_user)) -> dict:
         if not crawl:
             return {"ok": True, "crawl": None, "pages": []}
         snaps = con.execute(
-            """SELECT url, status, title, h1, meta, canonical, score, issues, depth, ms, final_url, robots_meta
+            """SELECT url, status, title, h1, meta, canonical, score, issues, depth, ms, final_url, robots_meta, hops, redirect_status
                FROM snapshots WHERE crawl_id=? ORDER BY depth, url""",
             (crawl["id"],),
         ).fetchall()

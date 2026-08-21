@@ -1,7 +1,8 @@
-import { Ban, Pause, Play, Save, UserCheck, UserPlus } from "lucide-react";
+import { ArrowLeft, Ban, Pause, Play, Save, UserCheck, UserPlus } from "lucide-react";
 import { useEffect, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
+import { BackLink } from "../components/BackLink";
 import { IconBtn } from "../components/IconBtn";
 import { useAuth } from "../context/AuthContext";
 import {
@@ -131,9 +132,7 @@ export function AdminOrgDetailPage() {
     <div className="page page-wide stack">
       <div className="row" style={{ justifyContent: "space-between" }}>
         <div>
-          <Link to="/admin" className="muted">
-            ← {t("admin.navOrgs")}
-          </Link>
+          <BackLink to="/admin" label={t("admin.navOrgs")} icon={<ArrowLeft size={20} />} />
           <h1 style={{ margin: "8px 0 0" }}>{org.name}</h1>
         </div>
         <IconBtn

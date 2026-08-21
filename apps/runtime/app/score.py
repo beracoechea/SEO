@@ -23,8 +23,11 @@ def score_url(
     elif status >= 400:
         n -= 50
         issues.append("http4xx")
+    if hops >= 1:
+        n -= 3
+        issues.append("redirect")
     if hops >= 3:
-        n -= 15
+        n -= 12
         issues.append("redirects")
     if onpage:
         if not title:
