@@ -2,6 +2,7 @@ import { Building2, UserPlus } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
+import { AdminUidHint } from "../components/AdminUidHint";
 import { IconBtn } from "../components/IconBtn";
 import { useAuth } from "../context/AuthContext";
 import {
@@ -13,11 +14,15 @@ import {
 
 export function OnboardingPage() {
   const { t } = useTranslation();
-  const { user } = useAuth();
+  const { user, platformAdmin } = useAuth();
   const navigate = useNavigate();
   const [invites, setInvites] = useState<Invite[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    if (platformAdmin) navigate("/admin", { replace: true });
+  }, [platformAdmin, navigate]);
 
   useEffect(() => {
     if (!user?.email) return;
@@ -43,6 +48,9 @@ export function OnboardingPage() {
       {error ? <div className="banner warn">{error}</div> : null}
       <div className="card stack">
         <p className="muted">{t("onboarding.waitHint")}</p>
+        <p className="muted">{t("onboarding.operatorHint")}</p>
+        {user ? <AdminUidHint uid={user.uid} /> : null}
+        <IconBtn to="/admin" label={t("nav.admin")} tone="sky" showLabel icon={<Building2 size={18} />} />
       </div>
       <div className="card stack">
         <h2 style={{ margin: 0, fontSize: 16 }}>{t("onboarding.invites")}</h2>

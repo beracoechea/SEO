@@ -42,6 +42,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
     const auth = getFirebaseAuth();
     return onAuthStateChanged(auth, async (next) => {
+      setLoading(true);
       setUser(next);
       if (next) {
         const locale = (i18n.language || "es").startsWith("en") ? "en" : "es";

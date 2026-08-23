@@ -768,6 +768,7 @@ label {
 
 .site-table {
   width: 100%;
+  table-layout: fixed;
   border-collapse: collapse;
   font-size: 0.925rem;
 }
@@ -777,6 +778,33 @@ label {
   text-align: left;
   padding: 12px 10px;
   border-bottom: 1px solid var(--line);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.site-table td:last-child,
+.site-table th:last-child {
+  overflow: visible;
+  white-space: nowrap;
+  text-overflow: clip;
+}
+
+.site-table .cell-url {
+  width: 42%;
+  max-width: 0;
+}
+
+.site-table .cell-actions {
+  width: 180px;
+}
+
+.url-clip {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .site-table tbody tr {
@@ -1134,6 +1162,10 @@ label {
   align-items: center;
 }
 
+.audit-hero > .stack {
+  min-width: 0;
+}
+
 @media (max-width: 640px) {
   .audit-hero {
     grid-template-columns: 1fr;
@@ -1208,6 +1240,7 @@ label {
 
 .table-wrap {
   overflow-x: auto;
+  max-width: 100%;
 }
 
 .page-table {
@@ -1231,7 +1264,7 @@ label {
 }
 
 .ellipsis {
-  max-width: 280px;
+  max-width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

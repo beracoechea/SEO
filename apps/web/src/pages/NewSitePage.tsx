@@ -6,6 +6,7 @@ import { BackLink } from "../components/BackLink";
 import { IconBtn } from "../components/IconBtn";
 import { createSite, deleteSite, getOrg, getSite, isPrivateOrigin, updateSite, type RenderJs } from "../lib/db";
 import { isFirestoreNetworkError } from "../lib/firebase";
+import { displayUrl } from "../lib/origin";
 import { isAdminPath, orgHomePath, sitePath } from "../lib/paths";
 import { listSiteSummaries, resolvedRuntimeUrl } from "../lib/runtime";
 
@@ -97,7 +98,7 @@ export function NewSitePage() {
     }
     const payload = {
       name: name.trim(),
-      origin: origin.replace(/\/$/, ""),
+      origin: displayUrl(origin),
       maxPages,
       maxDepth,
       scanEvery,

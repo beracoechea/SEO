@@ -1,3 +1,14 @@
+/** Short label for tables: host + path, without tracking query strings. */
+export function displayUrl(url: string): string {
+  try {
+    const u = new URL(url);
+    const path = u.pathname === "/" ? "" : u.pathname.replace(/\/$/, "");
+    return `${u.origin}${path}`;
+  } catch {
+    return url;
+  }
+}
+
 export function isPrivateOrigin(origin: string): boolean {
   try {
     const u = new URL(origin);

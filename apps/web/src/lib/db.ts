@@ -189,7 +189,16 @@ export async function updateOrg(
   orgId: string,
   patch: { name?: string; runtimeBaseUrl?: string | null; defaultRateLimit?: number },
 ) {
-  await updateDoc(doc(db(), "orgs", orgId), patch);
+  const next: Record<string, unknown> = { ...patch };
+  if (typeof patch.name === "string") next.name = patch.name.trim();
+  await updateDoc(doc(db(), "orgs", orgId), next);
+  if (typeof next.name !== "string") return;
+  const members = await listMembers(orgId, { includeRevoked: true });
+  await Promise.all(
+    members.map((m) =>
+      updateDoc(doc(db(), "users", m.uid, "orgIndex", orgId), { name: next.name }).catch(() => undefined),
+    ),
+  );
 }
 
 export async function updateOrgEntitlements(

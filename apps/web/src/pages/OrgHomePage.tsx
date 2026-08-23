@@ -8,6 +8,7 @@ import { ScoreRing } from "../components/ScoreRing";
 import { TrendNodes } from "../components/TrendNodes";
 import { deleteSite, getOrg, listSites, type Org, type Site } from "../lib/db";
 import { isFirestoreNetworkError } from "../lib/firebase";
+import { displayUrl } from "../lib/origin";
 import {
   listSiteSummaries,
   resolvedRuntimeUrl,
@@ -264,7 +265,7 @@ export function OrgHomePage() {
                     )}
                     <div className="site-card-copy">
                       <strong>{s.name}</strong>
-                      <div className="muted ellipsis">{s.origin}</div>
+                      <div className="muted ellipsis" title={s.origin}>{displayUrl(s.origin)}</div>
                     </div>
                   </div>
                   {busyThis ? (

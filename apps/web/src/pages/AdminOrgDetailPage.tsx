@@ -1,4 +1,4 @@
-import { ArrowLeft, Ban, Download, Pause, Play, Plus, Save, Search, UserCheck, UserPlus } from "lucide-react";
+import { ArrowLeft, Ban, Download, Pause, Pencil, Play, Plus, Save, Search, Trash2, UserCheck, UserPlus, X } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
@@ -7,6 +7,7 @@ import { IconBtn } from "../components/IconBtn";
 import { ScanQueue } from "../components/ScanQueue";
 import { useAuth } from "../context/AuthContext";
 import {
+  deleteSite,
   getOrg,
   grantOrgAccess,
   listMembers,
@@ -24,7 +25,8 @@ import {
   type Site,
 } from "../lib/db";
 import { defaultShellOrigin, downloadClientInstaller, INSTALLER_RUNTIME_VERSION } from "../lib/clientInstaller";
-import { newSitePath, sitePath } from "../lib/paths";
+import { displayUrl } from "../lib/origin";
+import { newSitePath, siteEditPath, sitePath } from "../lib/paths";
 import {
   cancelQueued,
   listSiteSummaries,
@@ -62,6 +64,8 @@ export function AdminOrgDetailPage() {
     typeof window !== "undefined" ? defaultShellOrigin(window.location.origin) : "",
   );
   const [lanUrl, setLanUrl] = useState("");
+  const [orgName, setOrgName] = useState("");
+  const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
 
   const runtime = resolvedRuntimeUrl(org?.runtimeBaseUrl);
 
@@ -98,6 +102,7 @@ export function AdminOrgDetailPage() {
       listOrgInvites(orgId),
     ]);
     setOrg(next);
+    setOrgName(next.name);
     setMaxSites(next.maxSites);
     setMaxPages(next.maxPagesPerSite);
     setMaxMembers(next.maxMembers);
@@ -218,6 +223,42 @@ export function AdminOrgDetailPage() {
     }
   }
 
+  async function saveName() {
+    if (!orgId) return;
+    const name = orgName.trim();
+    if (name.length < 2) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await updateOrg(orgId, { name });
+      await refresh();
+      setNote(t("admin.demoRenamed"));
+    } catch {
+      setError(t("errors.generic"));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function removeSite(site: Site) {
+    if (!orgId) return;
+    if (confirmDelete !== site.id) {
+      setConfirmDelete(site.id);
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    try {
+      await deleteSite(orgId, site.id, { asPlatformAdmin: true });
+      setConfirmDelete(null);
+      await refresh();
+    } catch {
+      setError(t("errors.generic"));
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function saveLanUrl() {
     if (!orgId) return;
     setBusy(true);
@@ -287,6 +328,29 @@ export function AdminOrgDetailPage() {
       {org.status === "suspended" ? <div className="banner warn">{t("admin.orgSuspended")}</div> : null}
       {error ? <div className="banner warn">{error}</div> : null}
       {note ? <div className="banner ok">{note}</div> : null}
+
+      {org.kind === "demo" ? (
+        <div className="card stack">
+          <label>
+            {t("admin.demoOrgName")}
+            <input
+              value={orgName}
+              onChange={(e) => setOrgName(e.target.value)}
+              maxLength={80}
+              placeholder={t("admin.demoOrgPlaceholder")}
+            />
+          </label>
+          <p className="muted">{t("admin.demoRenameHint")}</p>
+          <IconBtn
+            label={t("common.save")}
+            tone="accent"
+            showLabel
+            disabled={busy || orgName.trim().length < 2 || orgName.trim() === org.name}
+            onClick={() => void saveName()}
+            icon={<Save size={18} />}
+          />
+        </div>
+      ) : null}
 
       {scanning || queue.length ? (
         <ScanQueue
@@ -466,6 +530,7 @@ export function AdminOrgDetailPage() {
         {sites.length === 0 ? (
           <p className="muted">{org.kind === "demo" ? t("admin.demoSitesEmpty") : t("sites.empty")}</p>
         ) : (
+          <div className="table-wrap">
           <table className="site-table">
             <thead>
               <tr>
@@ -490,9 +555,9 @@ export function AdminOrgDetailPage() {
                         s.name
                       )}
                     </td>
-                    <td>
-                      <a href={s.origin} target="_blank" rel="noreferrer">
-                        {s.origin}
+                    <td className="cell-url">
+                      <a href={s.origin} target="_blank" rel="noreferrer" className="url-clip" title={s.origin}>
+                        {displayUrl(s.origin)}
                       </a>
                     </td>
                     <td>
@@ -520,21 +585,55 @@ export function AdminOrgDetailPage() {
                             ? row.score
                             : t("sites.never")}
                     </td>
-                    <td>
+                    <td className="cell-actions">
                       <div className="row" style={{ justifyContent: "flex-end", gap: 6 }}>
-                        <IconBtn
-                          label={running ? t("crawl.running") : queued ? t("sites.queued") : t("crawl.scan")}
-                          tone="accent"
-                          disabled={running || queued}
-                          onClick={() => void scan(s)}
-                          icon={<Play size={18} />}
-                        />
-                        <IconBtn
-                          to={orgId ? sitePath(orgId, s.id, true) : undefined}
-                          label={t("admin.audit")}
-                          tone="sky"
-                          icon={<Search size={18} />}
-                        />
+                        {confirmDelete === s.id && !running ? (
+                          <>
+                            <IconBtn
+                              label={t("sites.deleteYes")}
+                              tone="danger"
+                              showLabel
+                              disabled={busy}
+                              onClick={() => void removeSite(s)}
+                              icon={<Trash2 size={18} />}
+                            />
+                            <IconBtn
+                              label={t("sites.deleteNo")}
+                              disabled={busy}
+                              onClick={() => setConfirmDelete(null)}
+                              icon={<X size={18} />}
+                            />
+                          </>
+                        ) : (
+                          <>
+                            <IconBtn
+                              label={running ? t("crawl.running") : queued ? t("sites.queued") : t("crawl.scan")}
+                              tone="accent"
+                              disabled={running || queued}
+                              onClick={() => void scan(s)}
+                              icon={<Play size={18} />}
+                            />
+                            <IconBtn
+                              to={orgId ? siteEditPath(orgId, s.id, true) : undefined}
+                              label={running ? t("sites.lockedWhileScanning") : t("sites.edit")}
+                              disabled={running}
+                              icon={<Pencil size={18} />}
+                            />
+                            <IconBtn
+                              label={running ? t("sites.lockedWhileScanning") : t("sites.delete")}
+                              tone="danger"
+                              disabled={busy || running}
+                              onClick={() => void removeSite(s)}
+                              icon={<Trash2 size={18} />}
+                            />
+                            <IconBtn
+                              to={orgId ? sitePath(orgId, s.id, true) : undefined}
+                              label={t("admin.audit")}
+                              tone="sky"
+                              icon={<Search size={18} />}
+                            />
+                          </>
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -542,6 +641,7 @@ export function AdminOrgDetailPage() {
               })}
             </tbody>
           </table>
+          </div>
         )}
       </div>
     </div>

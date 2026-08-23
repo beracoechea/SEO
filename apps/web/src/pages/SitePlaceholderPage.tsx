@@ -9,6 +9,7 @@ import { ScoreRing } from "../components/ScoreRing";
 import { StatusBars } from "../components/StatusBars";
 import { UrlFeed } from "../components/UrlFeed";
 import { getOrg, getSite, type Org, type Site } from "../lib/db";
+import { displayUrl } from "../lib/origin";
 import { filterPages, httpMixFromPages, type PageFilter } from "../lib/pageFilter";
 import { isAdminPath, orgHomePath, siteEditPath } from "../lib/paths";
 import { getSiteSummary, listSiteSummaries, resolvedRuntimeUrl, startCrawl, type CrawlDiff, type CrawlRow, type PageSnap } from "../lib/runtime";
@@ -223,7 +224,7 @@ export function SitePlaceholderPage() {
         )}
         <div className="stack">
           <h1 style={{ margin: 0 }}>{site?.name || t("audit.title")}</h1>
-          <p className="muted">{site?.origin}</p>
+          <p className="muted url-clip" title={site?.origin}>{site ? displayUrl(site.origin) : ""}</p>
           <p className="muted">
             {running
                 ? `${t("crawl.scanning", { have: crawl?.pages_crawled ?? 0, cap: found })} · ${t(eta.key, { n: eta.n })}`
