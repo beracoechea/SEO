@@ -2,7 +2,7 @@ import { ArrowLeft, Ban, Download, Pause, Play, Plus, Save, Search, UserCheck, U
 import { useCallback, useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { AlertSettings } from "../components/AlertSettings";
+import { BackLink } from "../components/BackLink";
 import { IconBtn } from "../components/IconBtn";
 import { ScanQueue } from "../components/ScanQueue";
 import { useAuth } from "../context/AuthContext";
@@ -31,7 +31,6 @@ import {
   reorderQueue,
   resolvedRuntimeUrl,
   runQueuedNow,
-  saveRuntimeAlerts,
   startCrawl,
   syncSchedule,
   type CrawlRow,
@@ -63,8 +62,6 @@ export function AdminOrgDetailPage() {
     typeof window !== "undefined" ? defaultShellOrigin(window.location.origin) : "",
   );
   const [lanUrl, setLanUrl] = useState("");
-  const [alertWebhook, setAlertWebhook] = useState("");
-  const [alertEmail, setAlertEmail] = useState("");
 
   const runtime = resolvedRuntimeUrl(org?.runtimeBaseUrl);
 
@@ -79,8 +76,6 @@ export function AdminOrgDetailPage() {
       setQueuedIds((overview.queue || []).map((q) => q.site_id));
       setQueue(overview.queue || []);
       setRuntimeDown(false);
-      setAlertWebhook(overview.alerts.webhook);
-      setAlertEmail(overview.alerts.email);
     } catch {
       setScores({});
       setScanning(null);
@@ -239,21 +234,6 @@ export function AdminOrgDetailPage() {
     }
   }
 
-  async function saveAlerts(next: { webhook: string; email: string }) {
-    setBusy(true);
-    setError(null);
-    try {
-      await saveRuntimeAlerts(runtime, next);
-      setAlertWebhook(next.webhook);
-      setAlertEmail(next.email);
-      setNote(t("alerts.saved"));
-    } catch {
-      setError(t("crawl.needRuntime"));
-    } finally {
-      setBusy(false);
-    }
-  }
-
   function downloadInstaller() {
     if (!org) return;
     setError(null);
@@ -397,13 +377,6 @@ export function AdminOrgDetailPage() {
         />
       </div>
       ) : null}
-
-      <AlertSettings
-        webhook={alertWebhook}
-        email={alertEmail}
-        busy={busy}
-        onSave={saveAlerts}
-      />
 
       {org.kind !== "demo" ? (
       <div className="card stack">

@@ -134,7 +134,8 @@ La cáscara no se adjunta: se despliega a Hosting (sección 7).
 
 ## 7. Push a producción — cáscara web (Firebase Hosting)
 
-Producción = canal **live** de Firebase Hosting del proyecto Firebase **prod**.
+Producción = canal **live** del sitio Hosting **`bgx-seo-monitor`** (URL: https://bgx-seo-monitor.web.app).  
+**Nunca** hagas `firebase deploy --only hosting` contra el sitio por defecto `clima-laboral-e7698`: esa es la otra app.
 
 ### Primera vez (una sola)
 
@@ -253,4 +254,4 @@ Nunca apuntes el `.env.local` de desarrollo al proyecto `prod` para “probar un
 ## 12. Resumen en una frase
 
 `main` + tag `vX.Y.Z` + `firebase deploy` (proyecto **prod**) = cáscara en producción.  
-El crawler en planta **no** se publica con Hosting: el instalador deja una tarea de Windows (`actualizar.ps1`) que baja el tag nuevo, hace `compose stop` + `up --build` y **no** borra el volumen SQLite. Los avisos de 404 van por webhook gratis desde ese PC; no hace falta desplegar rules de Firestore.
+El crawler en planta **no** se publica con Hosting: el instalador deja una tarea de Windows (`actualizar.ps1`) que baja el tag nuevo, hace `compose stop` + `up --build` y **no** borra el volumen SQLite.

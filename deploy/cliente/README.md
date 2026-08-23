@@ -10,6 +10,4 @@ El camino normal **no** es copiar este folder a mano:
 
 El mismo `.ps1` deja `C:\seo-runtime\actualizar.ps1` y una tarea de Windows: actualiza el motor en segundo plano **sin** `docker compose down -v` (el historial SQLite se conserva).
 
-Avisos de 404 nuevos: en Sitios se pega un webhook gratis (Discord, Teams, ntfy). Se guarda en el SQLite de planta, no en Firestore.
-
 Detalle: [docs/INSTALACION.md](../../docs/INSTALACION.md) sección 2.

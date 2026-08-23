@@ -71,6 +71,11 @@ npx firebase-tools deploy --only firestore:rules,firestore:indexes
 
 Si antes creaste orgs o `platformAdmins` en `(default)`, no van a aparecer aquí. Hay que crearlos de nuevo en `webs`.
 
+Los **clientes no se dan de alta solos**. Cualquiera puede entrar con Google, pero la organización la crea un operador en `/admin` → Clientes (o Demostraciones) y luego invita el Gmail en Equipo.
+
+Cáscara en producción (sitio Hosting propio, no pisa clima-laboral): **https://bgx-seo-monitor.web.app**  
+En Authentication → Settings → Authorized domains agrega `bgx-seo-monitor.web.app` si Google rechaza el popup.
+
 ### 1.3 Cáscara web + motor de escaneo
 
 El usuario **no** configura el runtime. `npm run dev` arranca la web y, en el mismo comando, intenta levantar el motor en el puerto 8080. La UI habla con él por `/runtime` (proxy). El operador solo entra y pulsa **Escanear**.
@@ -166,7 +171,7 @@ El instalador de `/admin` deja en `C:\seo-runtime\actualizar.ps1` y una tarea de
 2. Si Docker Desktop no está Running, omite esa pasada.
 3. Pregunta a GitHub si hay un tag más nuevo; si no, no reconstruye.
 4. Hace `docker compose stop` (SIGTERM). El runtime vacía el WAL de SQLite (`PRAGMA wal_checkpoint`) al apagar.
-5. Copia el código nuevo **sin pisar** `deploy\cliente\.env` (SMTP y extras se conservan).
+5. Copia el código nuevo **sin pisar** `deploy\cliente\.env` (extras se conservan).
 6. `docker compose up -d --build` — el volumen `runtime-data` **no se borra**.
 
 A mano (misma regla):
@@ -185,24 +190,7 @@ docker compose -f deploy\cliente\docker-compose.yml --env-file deploy\cliente\.e
 
 **Nunca** `docker compose down -v`: eso tira el historial.
 
-### 2.4 Avisos de 404 nuevos (gratis, sin Firebase)
-
-El panel está en la LAN: si nadie lo abre, el motor igual avisa. La URL del webhook se guarda en el **SQLite de planta**, no en Firestore: **no hay que desplegar rules ni pagar un correo en la nube**.
-
-En Sitios (o en `/admin` de la org), con el motor LAN alcanzable:
-
-1. Pega un webhook **gratis**:
-   - **Discord** (recomendado): canal → Integraciones → Webhooks → copiar URL.
-   - **Microsoft Teams**: conector Incoming Webhook.
-   - **ntfy.sh**: `https://ntfy.sh/un-tema-secreto` y la app ntfy en el teléfono (gratis).
-   - **Telegram**: `https://api.telegram.org/bot<token>/sendMessage?chat_id=<id>`
-2. Guarda. El próximo escaneo que encuentre 404 **nuevos** (no el primero) hace POST desde el PC de planta.
-
-Correo por SMTP solo si ese PC ya tiene el mail de la empresa (`SMTP_HOST` en `deploy\cliente\.env`). No se usa Firebase Extensions ni SendGrid.
-
-El PC de planta tiene que estar encendido, igual que el escaneo programado.
-
-### 2.5 Qué no hacer en el cliente
+### 2.4 Qué no hacer en el cliente
 
 - No corras `npm run dev` ni Firebase Hosting ahí.
 - No expongas el puerto 8080 a internet.
@@ -279,7 +267,7 @@ Después de verde en Actions:
 2. Crear org, agregar un sitio `https://…`, invitar un segundo Gmail y confirmar que **ve el mismo origin**.
 3. `/admin` (con `platformAdmins`) lista **Clientes**. En **Demostraciones** crea una org tuya, agrega un `https://` de prospecto, **Escanear** y descarga Excel (verde) y PDF (rojo). Restringir un usuario de un cliente y confirmar que ya no entra.
 4. Abrir la org: Sitios → **Escanear** en un origin. El anillo y la tabla se llenan con URLs reales (títulos distintos por página).
-5. `/admin` → cliente → **Descargar instalador**, ejecutar el `.ps1` en un PC con Docker, pegar la URL LAN y comprobar health. En Sitios, guardar un webhook de prueba y un segundo escaneo con un 404 nuevo debe pegarle.
+5. `/admin` → cliente → **Descargar instalador**, ejecutar el `.ps1` en un PC con Docker, pegar la URL LAN y comprobar health.
 6. No hay `.env` en el commit (`git status`).
 
 Detalle de tags y Firebase Hosting: [VERSIONES_GITHUB.md](VERSIONES_GITHUB.md).
@@ -312,6 +300,5 @@ Detalle de tags y Firebase Hosting: [VERSIONES_GITHUB.md](VERSIONES_GITHUB.md).
 | El .ps1 pide reiniciar | Normal tras instalar Docker. Reinicia y ejecuta **el mismo** instalador |
 | Sitio SPA sin titles | En el sitio, **Páginas con JavaScript** en Automático o Siempre; `playwright install chromium` en el venv |
 | `docker compose` pide `.env` | En planta usa el instalador de `/admin`; no copies el example a mano |
-| No llega el aviso de 404 | Motor LAN encendido; webhook Discord/Teams/ntfy HTTPS (no localhost); el primer crawl no avisa; la URL se guarda en el SQLite de planta, no en Firebase |
 | Tras actualizar se perdió el historial | Se usó `docker compose down -v`. No lo hagas; el volumen `runtime-data` es el SQLite |
 | Push rechazado | `.\scripts\verify.ps1` en rojo; lee el `FAIL` |

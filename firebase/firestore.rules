@@ -53,7 +53,7 @@ service cloud.firestore {
 
     match /orgs/{orgId} {
       allow read: if isActiveMember(orgId) || isPlatformAdmin();
-      allow create: if signedIn() && request.resource.data.createdByUid == request.auth.uid;
+      allow create: if isPlatformAdmin();
       allow update: if isPlatformAdmin() || (ownerOf(orgId) && ownerOrgFieldsOnly());
       allow delete: if ownerOf(orgId) || isPlatformAdmin();
 

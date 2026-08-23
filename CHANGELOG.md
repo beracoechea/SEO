@@ -7,6 +7,18 @@ El versionado sigue [SemVer](https://semver.org/lang/es/).
 
 ## [Unreleased]
 
+## [0.2.0] — 2026-08-23
+
+### Removed
+
+- Avisos de 404 por webhook o correo (Discord, Teams, ntfy, SMTP): era demasiado complejo de configurar para los clientes.
+- Autoregistro de organizaciones: un Gmail cualquiera ya no puede crear un cliente. Logicbus da de alta la org en `/admin` e invita al equipo.
+
+### Changed
+
+- Login con marca de producto (icono de radar) y favicon propio.
+- Onboarding: solo unirse con invitación.
+
 ### Added
 
 - Tarjetas de auditoría (críticos, avisos, OK, sitemap, ms, titles repetidos, 200/3xx/4xx/5xx) como filtro del listado de URLs, con texto de “qué significa” y el hallazgo en cada URL.
@@ -14,7 +26,6 @@ El versionado sigue [SemVer](https://semver.org/lang/es/).
 - Burbuja de cupo sitios usados/permitidos y banner de escaneo en progreso (llenado tipo agua) en la home de la org.
 - Botones de volver más visibles e interruptor ES/EN con el idioma activo resaltado.
 - Actualización silenciosa del runtime en planta (tarea de Windows; no borra SQLite).
-- Avisos de 404 nuevos por webhook gratis (Discord, Teams, ntfy, Telegram) guardados en el SQLite de planta, sin Firestore.
 - Exportar informe Excel (resumen, gráficos HTTP/hallazgos y listado de URLs con saltos, destino, status y hallazgos).
 - Exportar informe PDF (resumen, gráficos y las URLs con más hallazgos; el listado completo sigue en Excel). Botones compactos: Excel verde y PDF rojo, con icono de descarga.
 - Render de páginas JavaScript (Chromium): por sitio en automático, siempre o solo HTML del servidor.

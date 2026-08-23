@@ -80,10 +80,6 @@ CREATE TABLE IF NOT EXISTS runtime_settings (
   k TEXT PRIMARY KEY,
   v TEXT NOT NULL
 );
-CREATE TABLE IF NOT EXISTS alerts_sent (
-  crawl_id TEXT PRIMARY KEY,
-  sent_at TEXT NOT NULL
-);
 """
 
 EXTRA_COLS = {

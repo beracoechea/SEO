@@ -1,11 +1,10 @@
-import { Building2, Plus, UserPlus } from "lucide-react";
+import { Building2, UserPlus } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { IconBtn } from "../components/IconBtn";
 import { useAuth } from "../context/AuthContext";
 import {
-  createOrg,
   joinOrg,
   listMyOrgs,
   listPendingInvitesByEmail,
@@ -16,7 +15,6 @@ export function OnboardingPage() {
   const { t } = useTranslation();
   const { user } = useAuth();
   const navigate = useNavigate();
-  const [name, setName] = useState("");
   const [invites, setInvites] = useState<Invite[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -25,20 +23,6 @@ export function OnboardingPage() {
     if (!user?.email) return;
     void listPendingInvitesByEmail(user.email).then(setInvites).catch(() => setInvites([]));
   }, [user]);
-
-  async function onCreate() {
-    if (!user?.email) return;
-    setBusy(true);
-    setError(null);
-    try {
-      const id = await createOrg(user.uid, user.email, name);
-      navigate(`/o/${id}`, { replace: true });
-    } catch {
-      setError(t("errors.generic"));
-    } finally {
-      setBusy(false);
-    }
-  }
 
   async function onJoin(inv: Invite) {
     if (!user?.email) return;
@@ -58,19 +42,7 @@ export function OnboardingPage() {
       <h1>{t("onboarding.title")}</h1>
       {error ? <div className="banner warn">{error}</div> : null}
       <div className="card stack">
-        <p className="muted">{t("onboarding.createHint")}</p>
-        <label>
-          {t("onboarding.orgName")}
-          <input value={name} onChange={(e) => setName(e.target.value)} maxLength={80} />
-        </label>
-        <IconBtn
-          label={t("onboarding.create")}
-          tone="accent"
-          showLabel
-          disabled={busy || name.trim().length < 2}
-          onClick={() => void onCreate()}
-          icon={<Plus size={18} />}
-        />
+        <p className="muted">{t("onboarding.waitHint")}</p>
       </div>
       <div className="card stack">
         <h2 style={{ margin: 0, fontSize: 16 }}>{t("onboarding.invites")}</h2>

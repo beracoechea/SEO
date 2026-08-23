@@ -12,7 +12,6 @@ def test_health_ok(monkeypatch):
         assert body["ok"] is True
         assert body["queue"] is True
         assert body["js"] is True
-        assert body["alerts"] is True
         assert body["busy"] is False
         assert body["org_id_suffix"] == "abcdef"
         assert "version" in body

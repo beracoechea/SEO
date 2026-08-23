@@ -33,18 +33,12 @@ export type CrawlHistoryPoint = {
   started_at?: string;
 };
 
-export type RuntimeAlerts = {
-  webhook: string;
-  email: string;
-};
-
 export type RuntimeOverview = {
   sites: CrawlRow[];
   history: Record<string, CrawlHistoryPoint[]>;
   active: CrawlRow | null;
   queue: QueueItem[];
   schedules: Record<string, { interval: string; next_run_at: string | null }>;
-  alerts: RuntimeAlerts;
 };
 
 export type QueueItem = {
@@ -180,21 +174,7 @@ export async function listSiteSummaries(runtimeUrl: string): Promise<RuntimeOver
     active: (body.active as CrawlRow | null) ?? null,
     queue: (body.queue as QueueItem[]) ?? [],
     schedules: (body.schedules as RuntimeOverview["schedules"]) ?? {},
-    alerts: {
-      webhook: String((body.alerts as RuntimeAlerts | undefined)?.webhook || ""),
-      email: String((body.alerts as RuntimeAlerts | undefined)?.email || ""),
-    },
   };
-}
-
-export async function saveRuntimeAlerts(runtimeUrl: string, alerts: { webhook: string; email: string }) {
-  return runtimeFetch(runtimeUrl, "/api/alerts", {
-    method: "PUT",
-    body: JSON.stringify({
-      alertWebhook: alerts.webhook,
-      alertEmail: alerts.email,
-    }),
-  });
 }
 
 export async function syncSchedule(

@@ -114,8 +114,6 @@ CÓMO ARMAR LA OFERTA (sin inventar precios aquí)
      Sirve para cerrar o para un “antes de contratar SEO”.
   B) Monitor mensual
      Runtime en su planta + cadencia semanal o mensual +
-     aviso gratis por Discord / Teams / ntfy cuando aparecen
-     404 nuevos (sale del PC de planta, sin Firebase) +
      un informe cuando el score baja.
   C) Demo de ventas (interno Logicbus)
      En Administración → Demostraciones: se crea una org

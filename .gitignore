@@ -8,6 +8,7 @@ __pycache__/
 *.sqlite-shm
 .env
 .env.local
+.env.production
 .firebase/
 .DS_Store
 Thumbs.db

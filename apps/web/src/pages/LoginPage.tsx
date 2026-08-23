@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { FirebaseError } from "firebase/app";
+import { Radar } from "lucide-react";
 import { LangSwitch } from "../components/LangSwitch";
 import { useAuth } from "../context/AuthContext";
 
@@ -30,7 +31,7 @@ export function LoginPage() {
     <div className="login-hero">
       <div className="card login-box stack">
         <div className="login-mark" aria-hidden>
-          W
+          <Radar size={28} strokeWidth={2.25} />
         </div>
         <div className="row" style={{ justifyContent: "space-between", alignItems: "flex-start" }}>
           <div>

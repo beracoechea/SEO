@@ -44,11 +44,11 @@ function stopPid(pid: string) {
   }
 }
 
-async function runtimeHealth(): Promise<{ ok: boolean; queue?: boolean; js?: boolean; alerts?: boolean }> {
+async function runtimeHealth(): Promise<{ ok: boolean; queue?: boolean; js?: boolean }> {
   try {
     const res = await fetch("http://127.0.0.1:8080/api/health");
     if (!res.ok) return { ok: false };
-    return (await res.json()) as { ok: boolean; queue?: boolean; js?: boolean; alerts?: boolean };
+    return (await res.json()) as { ok: boolean; queue?: boolean; js?: boolean };
   } catch {
     return { ok: false };
   }
@@ -65,8 +65,8 @@ function runtimeDevPlugin(): Plugin {
       const python = existsSync(venvPy) ? venvPy : existsSync(venvPyNix) ? venvPyNix : "python";
       const start = async () => {
         const health = await runtimeHealth();
-        if (health.ok && health.queue && health.js && health.alerts) return;
-        if (health.ok && (!health.queue || !health.js || !health.alerts)) {
+        if (health.ok && health.queue && health.js) return;
+        if (health.ok && (!health.queue || !health.js)) {
           const pid = pidOnPort(8080);
           if (pid) {
             console.warn("[runtime] motor desactualizado; se reinicia para cargar el código nuevo");
