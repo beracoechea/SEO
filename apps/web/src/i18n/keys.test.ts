@@ -17,6 +17,7 @@ const required = [
   "org.suspended",
   "audit.score",
   "crawl.scan",
+  "engine.download",
 ];
 
 describe("i18n", () => {

@@ -3,6 +3,7 @@ import {
   assertInstallerInput,
   buildClientInstaller,
   defaultShellOrigin,
+  installerCorsOrigin,
   installerFileName,
   psQuote,
 } from "./clientInstaller";
@@ -20,6 +21,8 @@ describe("clientInstaller", () => {
   it("no usa localhost como origen de la cascara", () => {
     expect(defaultShellOrigin("http://localhost:5173")).toBe("");
     expect(defaultShellOrigin("https://seo.web.app")).toBe("https://seo.web.app");
+    expect(installerCorsOrigin("http://localhost:5173")).toBe("https://bgx-seo-monitor.web.app");
+    expect(installerCorsOrigin("https://bgx-seo-monitor.web.app")).toBe("https://bgx-seo-monitor.web.app");
   });
 
   it("exige org, firebase y HTTPS publico", () => {

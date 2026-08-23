@@ -8,9 +8,10 @@ from pathlib import Path
 from uuid import uuid4
 
 from dotenv import load_dotenv
-from fastapi import Depends, FastAPI, Header, HTTPException
+from fastapi import Depends, FastAPI, Header, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
+from starlette.responses import Response
 
 from app import __version__
 from app import schedule as sched
@@ -125,6 +126,8 @@ origins = [
     "http://127.0.0.1:5173",
     "http://localhost:4173",
     "http://127.0.0.1:4173",
+    "https://bgx-seo-monitor.web.app",
+    "https://bgx-seo-monitor.firebaseapp.com",
 ]
 for part in os.getenv("CORS_ORIGIN", "").split(","):
     extra = part.strip().rstrip("/")
@@ -138,6 +141,27 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.middleware("http")
+async def allow_private_network(request: Request, call_next):
+    if request.method == "OPTIONS" and request.headers.get("access-control-request-private-network"):
+        origin = (request.headers.get("origin") or "").rstrip("/")
+        allowed = origin in {o.rstrip("/") for o in origins}
+        return Response(
+            status_code=200,
+            headers={
+                "Access-Control-Allow-Origin": origin if allowed else ", ".join(origins[:1]),
+                "Access-Control-Allow-Methods": "*",
+                "Access-Control-Allow-Headers": request.headers.get("access-control-request-headers", "*"),
+                "Access-Control-Allow-Credentials": "true",
+                "Access-Control-Allow-Private-Network": "true",
+            },
+        )
+    response = await call_next(request)
+    if request.headers.get("access-control-request-private-network"):
+        response.headers["Access-Control-Allow-Private-Network"] = "true"
+    return response
 
 
 def require_user(authorization: str | None = Header(default=None)) -> dict:

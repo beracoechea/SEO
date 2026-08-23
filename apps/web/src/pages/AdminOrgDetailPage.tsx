@@ -4,6 +4,7 @@ import { Link, useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { BackLink } from "../components/BackLink";
 import { IconBtn } from "../components/IconBtn";
+import { RuntimeSetupCard, useRuntimeReady } from "../components/RuntimeSetupCard";
 import { ScanQueue } from "../components/ScanQueue";
 import { useAuth } from "../context/AuthContext";
 import {
@@ -59,7 +60,6 @@ export function AdminOrgDetailPage() {
   const [scanning, setScanning] = useState<string | null>(null);
   const [queuedIds, setQueuedIds] = useState<string[]>([]);
   const [queue, setQueue] = useState<QueueItem[]>([]);
-  const [runtimeDown, setRuntimeDown] = useState(false);
   const [shellOrigin, setShellOrigin] = useState(() =>
     typeof window !== "undefined" ? defaultShellOrigin(window.location.origin) : "",
   );
@@ -68,6 +68,7 @@ export function AdminOrgDetailPage() {
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
 
   const runtime = resolvedRuntimeUrl(org?.runtimeBaseUrl);
+  const engine = useRuntimeReady(runtime);
 
   const refreshScores = useCallback(async () => {
     if (!org) return;
@@ -79,13 +80,11 @@ export function AdminOrgDetailPage() {
       setScanning(overview.active?.site_id ?? null);
       setQueuedIds((overview.queue || []).map((q) => q.site_id));
       setQueue(overview.queue || []);
-      setRuntimeDown(false);
     } catch {
       setScores({});
       setScanning(null);
       setQueuedIds([]);
       setQueue([]);
-      setRuntimeDown(true);
     }
   }, [org, runtime]);
 
@@ -143,6 +142,7 @@ export function AdminOrgDetailPage() {
 
   async function scan(site: Site) {
     if (!org) return;
+    if (!engine.ready) return;
     if (queuedIds.includes(site.id) || scanning === site.id) return;
     setError(null);
     try {
@@ -328,6 +328,12 @@ export function AdminOrgDetailPage() {
       {org.status === "suspended" ? <div className="banner warn">{t("admin.orgSuspended")}</div> : null}
       {error ? <div className="banner warn">{error}</div> : null}
       {note ? <div className="banner ok">{note}</div> : null}
+      <RuntimeSetupCard
+        org={{ id: org.id, name: org.name }}
+        missing={engine.missing}
+        checking={engine.checking}
+        onRetry={engine.retry}
+      />
 
       {org.kind === "demo" ? (
         <div className="card stack">
@@ -399,7 +405,6 @@ export function AdminOrgDetailPage() {
       </div>
       ) : null}
 
-      {org.kind !== "demo" ? (
       <div className="card stack">
         <h2 style={{ margin: 0, fontSize: 16 }}>{t("admin.installer")}</h2>
         <p className="muted">{t("admin.installerHint")}</p>
@@ -440,7 +445,6 @@ export function AdminOrgDetailPage() {
           icon={<Save size={18} />}
         />
       </div>
-      ) : null}
 
       {org.kind !== "demo" ? (
       <div className="card stack">
@@ -526,7 +530,6 @@ export function AdminOrgDetailPage() {
             icon={<Plus size={18} />}
           />
         </div>
-        {runtimeDown ? <div className="banner warn">{t("admin.runtimeDown")}</div> : null}
         {sites.length === 0 ? (
           <p className="muted">{org.kind === "demo" ? t("admin.demoSitesEmpty") : t("sites.empty")}</p>
         ) : (
@@ -609,7 +612,7 @@ export function AdminOrgDetailPage() {
                             <IconBtn
                               label={running ? t("crawl.running") : queued ? t("sites.queued") : t("crawl.scan")}
                               tone="accent"
-                              disabled={running || queued}
+                              disabled={running || queued || !engine.ready}
                               onClick={() => void scan(s)}
                               icon={<Play size={18} />}
                             />

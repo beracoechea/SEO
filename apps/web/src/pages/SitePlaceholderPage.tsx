@@ -4,6 +4,7 @@ import { useLocation, useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { BackLink } from "../components/BackLink";
 import { IconBtn } from "../components/IconBtn";
+import { RuntimeSetupCard, useRuntimeReady } from "../components/RuntimeSetupCard";
 import { Kpi, KpiHint } from "../components/Kpi";
 import { ScoreRing } from "../components/ScoreRing";
 import { StatusBars } from "../components/StatusBars";
@@ -67,6 +68,7 @@ export function SitePlaceholderPage() {
   const [exporting, setExporting] = useState<"xlsx" | "pdf" | null>(null);
 
   const runtime = resolvedRuntimeUrl(org?.runtimeBaseUrl);
+  const engine = useRuntimeReady(runtime);
 
   const loadSummary = useCallback(async () => {
     if (!siteId || !org) return;
@@ -107,6 +109,7 @@ export function SitePlaceholderPage() {
     if (!org || !site || !siteId) return;
     if (crawl?.status === "running") return;
     if (org.status === "suspended" && !fromAdmin) return;
+    if (!engine.ready) return;
     setBusy(true);
     setError(null);
     try {
@@ -211,6 +214,14 @@ export function SitePlaceholderPage() {
         label={fromAdmin ? t("admin.sitesOfOrg") : t("nav.sites")}
         icon={<ArrowLeft size={20} />}
       />
+      {org ? (
+        <RuntimeSetupCard
+          org={{ id: org.id, name: org.name }}
+          missing={engine.missing}
+          checking={engine.checking}
+          onRetry={engine.retry}
+        />
+      ) : null}
 
       <div className="card audit-hero">
         {running ? (
@@ -242,7 +253,7 @@ export function SitePlaceholderPage() {
               label={running ? t("crawl.running") : queued ? t("sites.queued") : t("crawl.scan")}
               tone="accent"
               showLabel
-              disabled={running || queued || (org?.status === "suspended" && !fromAdmin)}
+              disabled={running || queued || !engine.ready || (org?.status === "suspended" && !fromAdmin)}
               onClick={() => void run()}
               icon={<Play size={18} />}
             />

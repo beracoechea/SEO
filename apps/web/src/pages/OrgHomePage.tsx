@@ -3,6 +3,7 @@ import { useCallback, useEffect, useState, type MouseEvent } from "react";
 import { Link, useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { IconBtn } from "../components/IconBtn";
+import { RuntimeSetupCard, useRuntimeReady } from "../components/RuntimeSetupCard";
 import { ScanQueue } from "../components/ScanQueue";
 import { ScoreRing } from "../components/ScoreRing";
 import { TrendNodes } from "../components/TrendNodes";
@@ -61,6 +62,7 @@ export function OrgHomePage() {
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
 
   const runtime = resolvedRuntimeUrl(org?.runtimeBaseUrl);
+  const engine = useRuntimeReady(runtime);
 
   const refreshScores = useCallback(async () => {
     try {
@@ -125,6 +127,7 @@ export function OrgHomePage() {
     ev.preventDefault();
     ev.stopPropagation();
     if (!org || org.status === "suspended") return;
+    if (!engine.ready) return;
     if (scanning === site.id) return;
     if (queue.some((q) => q.site_id === site.id)) return;
     setError(null);
@@ -231,6 +234,14 @@ export function OrgHomePage() {
         />
       ) : null}
 
+      {org ? (
+        <RuntimeSetupCard
+          org={{ id: org.id, name: org.name }}
+          missing={engine.missing}
+          checking={engine.checking}
+          onRetry={engine.retry}
+        />
+      ) : null}
       {error ? <div className="banner warn">{error}</div> : null}
       {sites.length === 0 ? (
         <div className="card muted">{t("sites.empty")}</div>
@@ -319,7 +330,7 @@ export function OrgHomePage() {
                         label={busyThis ? t("crawl.running") : queuedThis ? t("sites.queued") : t("crawl.scan")}
                         tone="accent"
                         showLabel
-                        disabled={busyThis || queuedThis || org?.status === "suspended"}
+                        disabled={busyThis || queuedThis || org?.status === "suspended" || !engine.ready}
                         onClick={(e) => void scan(s, e)}
                         icon={<Play size={18} />}
                       />

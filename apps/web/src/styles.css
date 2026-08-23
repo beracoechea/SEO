@@ -766,6 +766,20 @@ label {
   background: color-mix(in srgb, var(--ok) 10%, #fff);
 }
 
+.engine-setup {
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--line));
+  background: color-mix(in srgb, var(--accent) 7%, #fff);
+}
+
+.engine-steps {
+  margin: 0;
+  padding-left: 1.2rem;
+  display: grid;
+  gap: 6px;
+  color: var(--text);
+  font-size: 0.95rem;
+}
+
 .site-table {
   width: 100%;
   table-layout: fixed;

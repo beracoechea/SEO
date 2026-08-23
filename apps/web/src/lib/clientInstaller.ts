@@ -390,6 +390,23 @@ export function buildClientInstaller(input: InstallerInput): string {
 }
 
 export const INSTALLER_RUNTIME_VERSION = "0.1.0";
+export const PRODUCTION_SHELL_ORIGIN = "https://bgx-seo-monitor.web.app";
+
+export function installerCorsOrigin(pageOrigin?: string): string {
+  const fromPage = defaultShellOrigin(pageOrigin ?? (typeof window !== "undefined" ? window.location.origin : ""));
+  return fromPage || PRODUCTION_SHELL_ORIGIN;
+}
+
+export function downloadOrgInstaller(org: { id: string; name: string }) {
+  const project = String(import.meta.env.VITE_FIREBASE_PROJECT_ID || "").trim();
+  downloadClientInstaller({
+    orgId: org.id,
+    orgName: org.name,
+    firebaseProjectId: project,
+    corsOrigin: installerCorsOrigin(),
+    runtimeVersion: INSTALLER_RUNTIME_VERSION,
+  });
+}
 
 export function downloadClientInstaller(input: InstallerInput) {
   const body = buildClientInstaller(input);

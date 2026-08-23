@@ -87,13 +87,22 @@ export type PageSnap = {
 
 export function resolvedRuntimeUrl(orgUrl?: string | null): string {
   const stored = (orgUrl || "").trim().replace(/\/$/, "");
-  if (stored && !/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(stored)) {
-    return stored;
-  }
+  if (stored) return stored;
   if (import.meta.env.DEV) return "/runtime";
   const env = (import.meta.env.VITE_RUNTIME_URL || "").trim().replace(/\/$/, "");
   if (env) return env;
-  return "/runtime";
+  return "http://127.0.0.1:8080";
+}
+
+export async function pingRuntime(runtimeUrl: string): Promise<boolean> {
+  try {
+    const res = await fetch(`${base(runtimeUrl)}/api/health`, { method: "GET" });
+    if (!res.ok) return false;
+    const body = (await res.json()) as { ok?: boolean };
+    return body.ok === true;
+  } catch {
+    return false;
+  }
 }
 
 function base(url: string) {
