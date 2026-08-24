@@ -18,6 +18,7 @@ const required = [
   "audit.score",
   "crawl.scan",
   "engine.download",
+  "engine.downloading",
 ];
 
 describe("i18n", () => {

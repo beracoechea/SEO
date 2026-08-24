@@ -11,12 +11,13 @@ type Props = {
   items: QueueItem[];
   sites: Named[];
   disabled?: boolean;
+  runNowDisabled?: boolean;
   onMove: (siteIds: string[]) => void | Promise<void>;
   onCancel: (siteId: string) => void | Promise<void>;
   onRunNow: (siteId: string) => void | Promise<void>;
 };
 
-export function ScanQueue({ runningName, items, sites, disabled, onMove, onCancel, onRunNow }: Props) {
+export function ScanQueue({ runningName, items, sites, disabled, runNowDisabled, onMove, onCancel, onRunNow }: Props) {
   const { t } = useTranslation();
   const [cancelingId, setCancelingId] = useState<string | null>(null);
   const names = Object.fromEntries(sites.map((s) => [s.id, s.name]));
@@ -84,7 +85,7 @@ export function ScanQueue({ runningName, items, sites, disabled, onMove, onCance
               <IconBtn
                 label={t("queue.runNow")}
                 tone="accent"
-                disabled={locked}
+                disabled={locked || runNowDisabled}
                 onClick={() => void onRunNow(q.site_id)}
                 icon={<ChevronsUp size={18} />}
               />

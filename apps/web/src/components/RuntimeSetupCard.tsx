@@ -53,6 +53,7 @@ export function RuntimeSetupCard({
   const { t } = useTranslation();
   const [note, setNote] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [downloading, setDownloading] = useState(false);
 
   if (checking && !missing) {
     return <p className="muted">{t("engine.checking")}</p>;
@@ -60,31 +61,31 @@ export function RuntimeSetupCard({
   if (!missing) return null;
 
   function download() {
+    if (downloading) return;
+    setDownloading(true);
     setError(null);
     try {
       downloadOrgInstaller(org);
       setNote(t("engine.downloaded"));
     } catch {
       setError(t("engine.downloadFailed"));
+      setDownloading(false);
+      return;
     }
+    window.setTimeout(() => setDownloading(false), 8000);
   }
 
   return (
     <div className="card stack engine-setup">
       <h2 style={{ margin: 0, fontSize: 18 }}>{t("engine.setupTitle")}</h2>
-      <p className="muted">{t("engine.setupBody")}</p>
-      <ol className="engine-steps">
-        <li>{t("engine.step1")}</li>
-        <li>{t("engine.step2")}</li>
-        <li>{t("engine.step3")}</li>
-      </ol>
       {note ? <div className="banner ok">{note}</div> : null}
       {error ? <div className="banner warn">{error}</div> : null}
       <div className="row" style={{ flexWrap: "wrap", gap: 10 }}>
         <IconBtn
-          label={t("engine.download")}
+          label={downloading ? t("engine.downloading") : t("engine.download")}
           tone="accent"
           showLabel
+          disabled={downloading}
           onClick={() => download()}
           icon={<Download size={18} />}
         />

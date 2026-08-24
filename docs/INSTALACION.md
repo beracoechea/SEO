@@ -34,7 +34,7 @@ Ficha para ventas y personas no técnicas: **[PARA_MARKETING.txt](PARA_MARKETING
 - Un Google Workspace / Gmail con el que van a entrar a la cáscara
 - Internet la primera vez (el instalador baja Docker Desktop si falta, y Chromium)
 
-No hace falta Node, Python ni instalar Docker a mano. El `.cmd` de `/admin` lo hace.
+No hace falta Node, Python ni instalar Docker a mano. El ZIP de `/admin` lo hace.
 
 ---
 
@@ -149,12 +149,12 @@ Esto es lo que se hace en el PC de planta. Logicbus ya tiene la cáscara en HTTP
 
 1. Abre **Clientes** → la organización.
 2. En **Motor en la planta**, confirma la **URL pública de la cáscara** (HTTPS de Hosting, no localhost).
-3. **Descargar instalador**. Baja `Instalar-SEO-….cmd` con el `ORG_ID` ya puesto.
-4. Ese archivo se lleva al PC de planta (USB, correo interno o se ejecuta por AnyDesk).
+3. **Descargar instalador**. Baja `Instalar-SEO-….zip` (Windows bloquea el `.cmd` suelto). Extrae y usa el `.cmd` de dentro, con el `ORG_ID` ya puesto.
+4. Ese ZIP se lleva al PC de planta (USB, correo interno o AnyDesk).
 
 ### 2.2 En el PC del cliente
 
-1. **Doble clic** en el `.cmd` (no lo abras con la Microsoft Store ni con “Ejecutar con PowerShell”). Acepta el aviso de administrador. Si SmartScreen dice “Windows protegió tu PC”, pulsa **Más información** → **Ejecutar de todas formas**.
+1. Extrae el ZIP. **Doble clic** en el `.cmd` (no lo abras con la Microsoft Store). Acepta administrador. Si Control inteligente de aplicaciones lo bloquea: clic derecho → **Propiedades** → **Desbloquear**. Si SmartScreen dice “Windows protegió tu PC”, **Más información** → **Ejecutar de todas formas**.
 2. Si no hay Docker, el script descarga e instala **Docker Desktop** (~500 MB). Si Windows pide reiniciar, reinicia y **vuelve a hacer doble clic en el mismo `.cmd`**.
 3. La primera vez también baja Chromium; tarda. Al terminar imprime `http://127.0.0.1:8080/api/health` y la URL LAN (`http://192.168.x.x:8080`).
 4. En `/admin` de esa org, pega esa URL LAN en **URL del motor en la LAN** y **Guardar**.
@@ -267,7 +267,7 @@ Después de verde en Actions:
 2. Crear org, agregar un sitio `https://…`, invitar un segundo Gmail y confirmar que **ve el mismo origin**.
 3. `/admin` (con `platformAdmins`) lista **Clientes**. En **Demostraciones** crea una org tuya, agrega un `https://` de prospecto, **Escanear** y descarga Excel (verde) y PDF (rojo). Restringir un usuario de un cliente y confirmar que ya no entra.
 4. Abrir la org: Sitios → **Escanear** en un origin. El anillo y la tabla se llenan con URLs reales (títulos distintos por página).
-5. `/admin` → cliente → **Descargar instalador**, doble clic en el `.cmd` en un PC con Docker, pegar la URL LAN y comprobar health.
+5. `/admin` → cliente → **Descargar instalador**, extrae el ZIP, doble clic en el `.cmd` en un PC con Docker, pegar la URL LAN y comprobar health.
 6. No hay `.env` en el commit (`git status`).
 
 Detalle de tags y Firebase Hosting: [VERSIONES_GITHUB.md](VERSIONES_GITHUB.md).

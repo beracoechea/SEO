@@ -200,6 +200,7 @@ h3 {
   opacity: 0.45;
   cursor: default;
   transform: none;
+  pointer-events: none;
 }
 
 .icon-spin {

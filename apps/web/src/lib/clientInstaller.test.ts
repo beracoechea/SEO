@@ -3,7 +3,9 @@ import {
   assertInstallerInput,
   buildClientInstaller,
   buildInstallerCmd,
+  buildInstallerZip,
   defaultShellOrigin,
+  installerCmdFileName,
   installerCorsAllowlist,
   installerCorsOrigin,
   installerFileName,
@@ -17,7 +19,8 @@ describe("clientInstaller", () => {
   });
 
   it("nombra el archivo con el cliente", () => {
-    expect(installerFileName("Acme SA de CV")).toBe("Instalar-SEO-Acme_SA_de_CV.cmd");
+    expect(installerFileName("Acme SA de CV")).toBe("Instalar-SEO-Acme_SA_de_CV.zip");
+    expect(installerCmdFileName("Acme SA de CV")).toBe("Instalar-SEO-Acme_SA_de_CV.cmd");
   });
 
   it("no usa localhost como origen de la cascara", () => {
@@ -73,6 +76,10 @@ describe("clientInstaller", () => {
     expect(script).toContain("runtime-data");
     expect(script).toContain("Register-ScheduledTask");
     expect(script).toContain("actualizar.ps1");
+    expect(script).toContain("Get-RemoteFile");
+    expect(script).toContain("Write-Progress");
+    expect(script).toContain("bajados");
+    expect(script).not.toContain("campo motor LAN");
     expect(script).not.toMatch(/(^|\n)\s*docker compose down -v/);
   });
 
@@ -88,7 +95,30 @@ describe("clientInstaller", () => {
     expect(cmd).toContain("###LOGICBUS_SEO_PS###");
     expect(cmd.indexOf("###LOGICBUS_SEO_PS###")).toBe(cmd.lastIndexOf("###LOGICBUS_SEO_PS###"));
     expect(cmd).toContain("$OrgId = 'org123'");
-    expect(cmd).toContain("@echo off");
+    expect(cmd).toContain("Get-RemoteFile");
+    expect(cmd).toContain("Write-Progress");
+    expect(cmd).toContain("function Wait-Docker");
+    expect(cmd).toContain("if (Test-DockerReady) { return $true }");
+    expect(cmd).toContain("'###'+'LOGICBUS_SEO_PS'+'###'");
+    expect(cmd.charCodeAt(0)).toBe("@".charCodeAt(0));
     expect(cmd).not.toContain("Start-Process -FilePath powershell.exe");
+  });
+
+  it("empaqueta el .cmd en un zip para que Windows no bloquee la descarga", () => {
+    const zip = buildInstallerZip({
+      orgId: "org123",
+      orgName: "Acme",
+      firebaseProjectId: "clima-laboral-e7698",
+      corsOrigin: "https://seo.web.app",
+      runtimeVersion: "0.1.0",
+    });
+    const text = new TextDecoder().decode(zip);
+    expect(zip[0]).toBe(0x50);
+    expect(zip[1]).toBe(0x4b);
+    expect(text).toContain("Instalar-SEO-Acme.cmd");
+    expect(text).toContain("LEEME.txt");
+    expect(text).toContain("$OrgId = 'org123'");
+    expect(text).not.toContain("\uFEFF@echo");
+    expect(text).toContain("@echo off");
   });
 });

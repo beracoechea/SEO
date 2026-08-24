@@ -62,6 +62,7 @@ export function SitePlaceholderPage() {
   const [diff, setDiff] = useState<CrawlDiff | null>(null);
   const [busy, setBusy] = useState(false);
   const [queued, setQueued] = useState(false);
+  const [otherBusy, setOtherBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState<PageFilter>("all");
   const [hint, setHint] = useState<PageFilter | null>(null);
@@ -81,7 +82,8 @@ export function SitePlaceholderPage() {
       const activeId = overview.active?.site_id ?? null;
       const queuedHere = (overview.queue || []).some((q) => q.site_id === siteId);
       setQueued(queuedHere);
-      setBusy(next.crawl?.status === "running" || activeId === siteId || queuedHere);
+      setOtherBusy(Boolean(activeId && activeId !== siteId));
+      setBusy(next.crawl?.status === "running" || activeId === siteId);
     } catch {
       /* runtime still booting */
     }
@@ -100,14 +102,15 @@ export function SitePlaceholderPage() {
   }, [loadSummary]);
 
   useEffect(() => {
-    if (!busy) return;
+    if (!busy && !otherBusy && !queued) return;
     const id = window.setInterval(() => void loadSummary(), 1500);
     return () => window.clearInterval(id);
-  }, [busy, loadSummary]);
+  }, [busy, otherBusy, queued, loadSummary]);
 
   async function run() {
     if (!org || !site || !siteId) return;
     if (crawl?.status === "running") return;
+    if (otherBusy) return;
     if (org.status === "suspended" && !fromAdmin) return;
     if (!engine.ready) return;
     setBusy(true);
@@ -250,10 +253,10 @@ export function SitePlaceholderPage() {
           </p>
           <div className="row" style={{ flexWrap: "wrap", gap: 10 }}>
             <IconBtn
-              label={running ? t("crawl.running") : queued ? t("sites.queued") : t("crawl.scan")}
+              label={running ? t("crawl.running") : otherBusy ? t("crawl.alreadyRunning") : queued ? t("sites.queued") : t("crawl.scan")}
               tone="accent"
               showLabel
-              disabled={running || queued || !engine.ready || (org?.status === "suspended" && !fromAdmin)}
+              disabled={running || queued || otherBusy || !engine.ready || (org?.status === "suspended" && !fromAdmin)}
               onClick={() => void run()}
               icon={<Play size={18} />}
             />

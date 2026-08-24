@@ -10,15 +10,141 @@ export function psQuote(value: string): string {
   return `'${String(value).replace(/'/g, "''")}'`;
 }
 
-export function installerFileName(orgName: string): string {
-  const slug =
+export function installerSlug(orgName: string): string {
+  return (
     (orgName || "cliente")
       .normalize("NFD")
       .replace(/[\u0300-\u036f]/g, "")
       .replace(/[^\w.-]+/g, "_")
       .replace(/^_+|_+$/g, "")
-      .slice(0, 40) || "cliente";
-  return `Instalar-SEO-${slug}.cmd`;
+      .slice(0, 40) || "cliente"
+  );
+}
+
+export function installerCmdFileName(orgName: string): string {
+  return `Instalar-SEO-${installerSlug(orgName)}.cmd`;
+}
+
+export function installerFileName(orgName: string): string {
+  return `Instalar-SEO-${installerSlug(orgName)}.zip`;
+}
+
+function crc32(data: Uint8Array): number {
+  let crc = 0xffffffff;
+  for (const byte of data) {
+    crc ^= byte;
+    for (let i = 0; i < 8; i++) crc = (crc >>> 1) ^ (0xedb88320 & -(crc & 1));
+  }
+  return (crc ^ 0xffffffff) >>> 0;
+}
+
+function u16(n: number): Uint8Array {
+  return Uint8Array.of(n & 255, (n >>> 8) & 255);
+}
+
+function u32(n: number): Uint8Array {
+  return Uint8Array.of(n & 255, (n >>> 8) & 255, (n >>> 16) & 255, (n >>> 24) & 255);
+}
+
+function concatBytes(parts: Uint8Array[]): Uint8Array {
+  const out = new Uint8Array(parts.reduce((sum, part) => sum + part.length, 0));
+  let offset = 0;
+  for (const part of parts) {
+    out.set(part, offset);
+    offset += part.length;
+  }
+  return out;
+}
+
+function zipStore(files: { name: string; data: Uint8Array }[]): Uint8Array {
+  const locals: Uint8Array[] = [];
+  const centrals: Uint8Array[] = [];
+  let offset = 0;
+  for (const file of files) {
+    const name = new TextEncoder().encode(file.name);
+    const crc = crc32(file.data);
+    const local = concatBytes([
+      Uint8Array.of(0x50, 0x4b, 0x03, 0x04),
+      u16(20),
+      u16(0),
+      u16(0),
+      u16(0),
+      u16(0),
+      u32(crc),
+      u32(file.data.length),
+      u32(file.data.length),
+      u16(name.length),
+      u16(0),
+      name,
+      file.data,
+    ]);
+    locals.push(local);
+    centrals.push(
+      concatBytes([
+        Uint8Array.of(0x50, 0x4b, 0x01, 0x02),
+        u16(20),
+        u16(20),
+        u16(0),
+        u16(0),
+        u16(0),
+        u16(0),
+        u32(crc),
+        u32(file.data.length),
+        u32(file.data.length),
+        u16(name.length),
+        u16(0),
+        u16(0),
+        u16(0),
+        u16(0),
+        u32(0),
+        u32(offset),
+        name,
+      ]),
+    );
+    offset += local.length;
+  }
+  const central = concatBytes(centrals);
+  const eocd = concatBytes([
+    Uint8Array.of(0x50, 0x4b, 0x05, 0x06),
+    u16(0),
+    u16(0),
+    u16(files.length),
+    u16(files.length),
+    u32(central.length),
+    u32(offset),
+    u16(0),
+  ]);
+  return concatBytes([...locals, central, eocd]);
+}
+
+function installerReadme(cmdName: string): string {
+  return [
+    "Instalador del motor SEO Logicbus",
+    "",
+    "1. Extrae este ZIP (clic derecho > Extraer todo).",
+    `2. Doble clic en ${cmdName}.`,
+    "3. Pulsa Si cuando Windows pida administrador.",
+    "",
+    "Windows bloquea el .cmd si lo descargas suelto (Control inteligente de aplicaciones).",
+    "Por eso va dentro de un ZIP.",
+    "",
+    "Si al abrir el .cmd Windows lo bloquea:",
+    "- Clic derecho en el .cmd > Propiedades > Desbloquear > Aplicar.",
+    "- O Configuracion > Privacidad y seguridad > Seguridad de Windows",
+    "  > Control de aplicaciones y del navegador > Control inteligente de aplicaciones.",
+    "",
+  ].join("\r\n");
+}
+
+export function buildInstallerZip(input: InstallerInput): Uint8Array {
+  const cmdName = installerCmdFileName(input.orgName);
+  const cmd = buildInstallerCmd(input);
+  const cmdBytes = new TextEncoder().encode(cmd);
+  const readme = new TextEncoder().encode(installerReadme(cmdName));
+  return zipStore([
+    { name: "LEEME.txt", data: readme },
+    { name: cmdName, data: cmdBytes },
+  ]);
 }
 
 const SYSTEM_POWERSHELL = "%SystemRoot%\\System32\\WindowsPowerShell\\v1.0\\powershell.exe";
@@ -142,6 +268,50 @@ export function buildClientInstaller(input: InstallerInput): string {
     "  if (Test-Path $bin) { $env:Path = $bin + ';' + $env:Path }",
     "}",
     "",
+    "function Get-RemoteFile {",
+    "  param([string]$Uri, [string]$OutFile, [string]$Title)",
+    "  Write-Host $Title",
+    "  Write-Host '  Si tarda, es normal: el archivo es grande. No cierres esta ventana.'",
+    "  $folder = Split-Path -Parent $OutFile",
+    "  if ($folder) { New-Item -ItemType Directory -Force -Path $folder | Out-Null }",
+    "  $req = [System.Net.HttpWebRequest]::Create($Uri)",
+    "  $req.UserAgent = 'Logicbus-SEO-installer'",
+    "  $req.AllowAutoRedirect = $true",
+    "  $res = $req.GetResponse()",
+    "  $total = [int64]$res.ContentLength",
+    "  $inStream = $res.GetResponseStream()",
+    "  $outStream = [IO.File]::Open($OutFile, 'Create')",
+    "  $buf = New-Object byte[] 65536",
+    "  $got = [int64]0",
+    "  $next = 0",
+    "  try {",
+    "    while (($n = $inStream.Read($buf, 0, $buf.Length)) -gt 0) {",
+    "      $outStream.Write($buf, 0, $n)",
+    "      $got += $n",
+    "      if ($total -gt 0) {",
+    "        $pct = [int][Math]::Min(100, [Math]::Floor((100.0 * $got) / $total))",
+    "        if ($pct -ge $next -or $got -eq $total) {",
+    "          $next = [Math]::Min(100, $pct + 2)",
+    "          $mb = [Math]::Round($got / 1MB, 1)",
+    "          $all = [Math]::Round($total / 1MB, 1)",
+    "          $fill = [int][Math]::Floor((28.0 * $got) / $total)",
+    "          $bar = ('#' * $fill) + ('-' * (28 - $fill))",
+    "          Write-Host ('  [' + $bar + '] ' + $pct + '%  ' + $mb + ' / ' + $all + ' MB')",
+    "          Write-Progress -Activity $Title -Status ($pct.ToString() + '%') -PercentComplete $pct",
+    "        }",
+    "      } elseif (($got % 5MB) -lt 65536) {",
+    "        Write-Host ('  bajados ' + [Math]::Round($got / 1MB, 1) + ' MB')",
+    "      }",
+    "    }",
+    "  } finally {",
+    "    $outStream.Close()",
+    "    $inStream.Close()",
+    "    $res.Close()",
+    "    Write-Progress -Activity $Title -Completed",
+    "  }",
+    "  Write-Host '  listo.'",
+    "}",
+    "",
     "function Test-DockerReady {",
     "  Refresh-Path",
     "  if (-not (Get-Command docker -ErrorAction SilentlyContinue)) { return $false }",
@@ -154,7 +324,7 @@ export function buildClientInstaller(input: InstallerInput): string {
     "  $wait = 0",
     "  while ($wait -lt $Tries) {",
     "    if (Test-DockerReady) { return $true }",
-    "    Write-Host 'Esperando a que Docker Desktop quede Running...'",
+    "    Write-Host ('Esperando a que Docker Desktop quede Running... ' + ($wait + 1) + '/' + $Tries)",
     "    Start-Sleep -Seconds 5",
     "    $wait++",
     "  }",
@@ -162,9 +332,9 @@ export function buildClientInstaller(input: InstallerInput): string {
     "}",
     "",
     "function Install-DockerDesktop {",
-    "  Write-Host 'Docker no esta instalado. Se descarga Docker Desktop (oficial, ~500 MB)...'",
+    "  Write-Host 'Docker no esta instalado. Se descarga Docker Desktop (oficial, ~500 MB).'",
     "  $setup = Join-Path $env:TEMP 'DockerDesktopInstaller.exe'",
-    "  Invoke-WebRequest -Uri $DockerSetup -OutFile $setup -UseBasicParsing",
+    "  Get-RemoteFile -Uri $DockerSetup -OutFile $setup -Title 'Descargando Docker Desktop'",
     "  Write-Host 'Instalando Docker Desktop (silencioso)...'",
     "  $p = Start-Process -FilePath $setup -ArgumentList @('install','--quiet','--accept-license') -Wait -PassThru",
     "  $code = $p.ExitCode",
@@ -261,7 +431,7 @@ export function buildClientInstaller(input: InstallerInput): string {
     "  $unpack = Join-Path $env:TEMP 'seo-runtime-unpack'",
     "  if (Test-Path $unpack) { Remove-Item $unpack -Recurse -Force }",
     "  Write-UpdateLog 'Descargando el runtime...'",
-    "  Invoke-WebRequest -Uri $ZipUrl -OutFile $tmpZip -UseBasicParsing",
+    "  Get-RemoteFile -Uri $ZipUrl -OutFile $tmpZip -Title 'Descargando el motor SEO'",
     "  Expand-Archive -Path $tmpZip -DestinationPath $unpack -Force",
     "  $inner = Get-ChildItem $unpack | Select-Object -First 1",
     "  $envBackup = $null",
@@ -427,7 +597,6 @@ export function buildClientInstaller(input: InstallerInput): string {
     "if ($ips.Count -gt 0) {",
     "  Write-Host 'En la oficina usa (misma LAN):'",
     "  $ips | ForEach-Object { Write-Host ('  http://' + $_ + ':8080') }",
-    "  Write-Host 'Copia esa URL en /admin de la org, campo motor LAN.'",
     "}",
     "Write-Host ($health | ConvertTo-Json -Compress)",
     "Write-Host ''",
@@ -459,10 +628,10 @@ export function downloadOrgInstaller(org: { id: string; name: string }) {
 }
 
 export function downloadClientInstaller(input: InstallerInput) {
-  const body = buildInstallerCmd(input);
-  const bom = new Uint8Array([0xef, 0xbb, 0xbf]);
-  const bytes = new TextEncoder().encode(body);
-  const blob = new Blob([bom, bytes], { type: "application/octet-stream" });
+  const zip = buildInstallerZip(input);
+  const buffer = new ArrayBuffer(zip.byteLength);
+  new Uint8Array(buffer).set(zip);
+  const blob = new Blob([buffer], { type: "application/zip" });
   const link = document.createElement("a");
   link.href = URL.createObjectURL(blob);
   link.download = installerFileName(input.orgName);

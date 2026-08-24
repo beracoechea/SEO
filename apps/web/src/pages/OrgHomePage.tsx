@@ -128,7 +128,7 @@ export function OrgHomePage() {
     ev.stopPropagation();
     if (!org || org.status === "suspended") return;
     if (!engine.ready) return;
-    if (scanning === site.id) return;
+    if (scanning) return;
     if (queue.some((q) => q.site_id === site.id)) return;
     setError(null);
     try {
@@ -231,6 +231,7 @@ export function OrgHomePage() {
               })
           }
           onRunNow={(id) => runQueuedNow(runtime, id).then(() => refreshScores()).catch(() => setError(t("crawl.failed")))}
+          runNowDisabled={Boolean(scanning)}
         />
       ) : null}
 
@@ -252,6 +253,14 @@ export function OrgHomePage() {
             const series = [...(history[s.id] || [])].reverse();
             const busyThis = scanning === s.id || row?.status === "running";
             const queuedThis = queue.some((q) => q.site_id === s.id);
+            const scanLocked = Boolean(scanning) || queuedThis || org?.status === "suspended" || !engine.ready;
+            const scanLabel = busyThis
+              ? t("crawl.running")
+              : scanning
+                ? t("crawl.alreadyRunning")
+                : queuedThis
+                  ? t("sites.queued")
+                  : t("crawl.scan");
             const cadence = schedules[s.id]?.interval || s.scanEvery || "off";
             const nextAt = schedules[s.id]?.next_run_at;
             const pct = busyThis ? crawlProgressPercent(row || { status: "running", pages_crawled: 0 }) : null;
@@ -327,10 +336,10 @@ export function OrgHomePage() {
                     <>
                       <IconBtn
                         className="site-scan-btn"
-                        label={busyThis ? t("crawl.running") : queuedThis ? t("sites.queued") : t("crawl.scan")}
+                        label={scanLabel}
                         tone="accent"
                         showLabel
-                        disabled={busyThis || queuedThis || org?.status === "suspended" || !engine.ready}
+                        disabled={scanLocked}
                         onClick={(e) => void scan(s, e)}
                         icon={<Play size={18} />}
                       />

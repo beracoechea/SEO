@@ -4,7 +4,7 @@ import { Link, useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { BackLink } from "../components/BackLink";
 import { IconBtn } from "../components/IconBtn";
-import { RuntimeSetupCard, useRuntimeReady } from "../components/RuntimeSetupCard";
+import { useRuntimeReady } from "../components/RuntimeSetupCard";
 import { ScanQueue } from "../components/ScanQueue";
 import { useAuth } from "../context/AuthContext";
 import {
@@ -25,7 +25,7 @@ import {
   type Role,
   type Site,
 } from "../lib/db";
-import { defaultShellOrigin, downloadClientInstaller, INSTALLER_RUNTIME_VERSION } from "../lib/clientInstaller";
+import { downloadClientInstaller, INSTALLER_RUNTIME_VERSION, installerCorsOrigin } from "../lib/clientInstaller";
 import { displayUrl } from "../lib/origin";
 import { newSitePath, siteEditPath, sitePath } from "../lib/paths";
 import {
@@ -60,12 +60,9 @@ export function AdminOrgDetailPage() {
   const [scanning, setScanning] = useState<string | null>(null);
   const [queuedIds, setQueuedIds] = useState<string[]>([]);
   const [queue, setQueue] = useState<QueueItem[]>([]);
-  const [shellOrigin, setShellOrigin] = useState(() =>
-    typeof window !== "undefined" ? defaultShellOrigin(window.location.origin) : "",
-  );
-  const [lanUrl, setLanUrl] = useState("");
   const [orgName, setOrgName] = useState("");
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
+  const [installerBusy, setInstallerBusy] = useState(false);
 
   const runtime = resolvedRuntimeUrl(org?.runtimeBaseUrl);
   const engine = useRuntimeReady(runtime);
@@ -105,7 +102,6 @@ export function AdminOrgDetailPage() {
     setMaxSites(next.maxSites);
     setMaxPages(next.maxPagesPerSite);
     setMaxMembers(next.maxMembers);
-    setLanUrl(next.runtimeBaseUrl || "");
     setMembers(m);
     setSites(s);
     setInvites(inv);
@@ -143,7 +139,7 @@ export function AdminOrgDetailPage() {
   async function scan(site: Site) {
     if (!org) return;
     if (!engine.ready) return;
-    if (queuedIds.includes(site.id) || scanning === site.id) return;
+    if (scanning) return;
     setError(null);
     try {
       await startCrawl(runtime, site.id, {
@@ -159,7 +155,8 @@ export function AdminOrgDetailPage() {
       await refreshScores();
     } catch (e) {
       const msg = e instanceof Error ? e.message : "";
-      if (msg === "Failed to fetch" || msg.includes("NetworkError")) setError(t("crawl.needRuntime"));
+      if (msg === "crawl.alreadyRunning") await refreshScores();
+      else if (msg === "Failed to fetch" || msg.includes("NetworkError")) setError(t("crawl.needRuntime"));
       else setError(t("crawl.failed"));
     }
   }
@@ -259,40 +256,27 @@ export function AdminOrgDetailPage() {
     }
   }
 
-  async function saveLanUrl() {
-    if (!orgId) return;
-    setBusy(true);
-    setError(null);
-    try {
-      const value = lanUrl.trim().replace(/\/$/, "") || null;
-      await updateOrg(orgId, { runtimeBaseUrl: value });
-      await refresh();
-      setNote(t("admin.installerLanSaved"));
-    } catch {
-      setError(t("errors.generic"));
-    } finally {
-      setBusy(false);
-    }
-  }
-
   function downloadInstaller() {
-    if (!org) return;
+    if (!org || installerBusy) return;
     setError(null);
     const project = String(import.meta.env.VITE_FIREBASE_PROJECT_ID || "").trim();
     if (!project) {
       setError(t("admin.installerNeedFirebase"));
       return;
     }
+    setInstallerBusy(true);
     try {
       downloadClientInstaller({
         orgId: org.id,
         orgName: org.name,
         firebaseProjectId: project,
-        corsOrigin: shellOrigin,
+        corsOrigin: installerCorsOrigin(),
         runtimeVersion: INSTALLER_RUNTIME_VERSION,
       });
       setNote(t("admin.installerDone"));
+      window.setTimeout(() => setInstallerBusy(false), 8000);
     } catch (e) {
+      setInstallerBusy(false);
       const msg = e instanceof Error ? e.message : "";
       if (msg === "installer.corsHttps") setError(t("admin.installerNeedHttps"));
       else setError(t("errors.generic"));
@@ -328,12 +312,6 @@ export function AdminOrgDetailPage() {
       {org.status === "suspended" ? <div className="banner warn">{t("admin.orgSuspended")}</div> : null}
       {error ? <div className="banner warn">{error}</div> : null}
       {note ? <div className="banner ok">{note}</div> : null}
-      <RuntimeSetupCard
-        org={{ id: org.id, name: org.name }}
-        missing={engine.missing}
-        checking={engine.checking}
-        onRetry={engine.retry}
-      />
 
       {org.kind === "demo" ? (
         <div className="card stack">
@@ -373,6 +351,7 @@ export function AdminOrgDetailPage() {
               })
           }
           onRunNow={(id) => runQueuedNow(runtime, id).then(() => refreshScores()).catch(() => setError(t("crawl.failed")))}
+          runNowDisabled={Boolean(scanning)}
         />
       ) : null}
 
@@ -407,42 +386,13 @@ export function AdminOrgDetailPage() {
 
       <div className="card stack">
         <h2 style={{ margin: 0, fontSize: 16 }}>{t("admin.installer")}</h2>
-        <p className="muted">{t("admin.installerHint")}</p>
-        <label>
-          {t("admin.installerOrgId")}
-          <input value={org.id} readOnly onFocus={(e) => e.target.select()} />
-        </label>
-        <label>
-          {t("admin.installerShell")}
-          <input
-            value={shellOrigin}
-            placeholder="https://tu-app.web.app"
-            onChange={(e) => setShellOrigin(e.target.value)}
-          />
-        </label>
-        <p className="muted">{t("admin.installerShellHint")}</p>
         <IconBtn
-          label={t("admin.installerDownload")}
+          label={installerBusy ? t("engine.downloading") : t("admin.installerDownload")}
           tone="accent"
           showLabel
+          disabled={installerBusy}
           onClick={() => downloadInstaller()}
           icon={<Download size={18} />}
-        />
-        <label>
-          {t("admin.installerLan")}
-          <input
-            value={lanUrl}
-            placeholder="http://192.168.1.20:8080"
-            onChange={(e) => setLanUrl(e.target.value)}
-          />
-        </label>
-        <p className="muted">{t("admin.installerLanHint")}</p>
-        <IconBtn
-          label={t("admin.installerLanSave")}
-          showLabel
-          disabled={busy}
-          onClick={() => void saveLanUrl()}
-          icon={<Save size={18} />}
         />
       </div>
 
@@ -549,6 +499,14 @@ export function AdminOrgDetailPage() {
                 const row = scores[s.id];
                 const running = scanning === s.id || row?.status === "running";
                 const queued = queuedIds.includes(s.id);
+                const scanLocked = Boolean(scanning) || queued || !engine.ready;
+                const scanLabel = running
+                  ? t("crawl.running")
+                  : scanning
+                    ? t("crawl.alreadyRunning")
+                    : queued
+                      ? t("sites.queued")
+                      : t("crawl.scan");
                 return (
                   <tr key={s.id}>
                     <td>
@@ -610,9 +568,9 @@ export function AdminOrgDetailPage() {
                         ) : (
                           <>
                             <IconBtn
-                              label={running ? t("crawl.running") : queued ? t("sites.queued") : t("crawl.scan")}
+                              label={scanLabel}
                               tone="accent"
-                              disabled={running || queued || !engine.ready}
+                              disabled={scanLocked}
                               onClick={() => void scan(s)}
                               icon={<Play size={18} />}
                             />
