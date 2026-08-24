@@ -34,7 +34,7 @@ Ficha para ventas y personas no técnicas: **[PARA_MARKETING.txt](PARA_MARKETING
 - Un Google Workspace / Gmail con el que van a entrar a la cáscara
 - Internet la primera vez (el instalador baja Docker Desktop si falta, y Chromium)
 
-No hace falta Node, Python ni instalar Docker a mano. El `.ps1` de `/admin` lo hace.
+No hace falta Node, Python ni instalar Docker a mano. El `.cmd` de `/admin` lo hace.
 
 ---
 
@@ -149,19 +149,19 @@ Esto es lo que se hace en el PC de planta. Logicbus ya tiene la cáscara en HTTP
 
 1. Abre **Clientes** → la organización.
 2. En **Motor en la planta**, confirma la **URL pública de la cáscara** (HTTPS de Hosting, no localhost).
-3. **Descargar instalador**. Baja `Instalar-SEO-….ps1` con el `ORG_ID` ya puesto.
+3. **Descargar instalador**. Baja `Instalar-SEO-….cmd` con el `ORG_ID` ya puesto.
 4. Ese archivo se lleva al PC de planta (USB, correo interno o se ejecuta por AnyDesk).
 
 ### 2.2 En el PC del cliente
 
-1. Clic derecho en el `.ps1` → **Ejecutar con PowerShell** (o `powershell -ExecutionPolicy Bypass -File .\Instalar-SEO-….ps1`). Acepta el aviso de administrador.
-2. Si no hay Docker, el script descarga e instala **Docker Desktop** (~500 MB). Si Windows pide reiniciar, reinicia y **vuelve a ejecutar el mismo `.ps1`**.
+1. **Doble clic** en el `.cmd` (no lo abras con la Microsoft Store ni con “Ejecutar con PowerShell”). Acepta el aviso de administrador. Si SmartScreen dice “Windows protegió tu PC”, pulsa **Más información** → **Ejecutar de todas formas**.
+2. Si no hay Docker, el script descarga e instala **Docker Desktop** (~500 MB). Si Windows pide reiniciar, reinicia y **vuelve a hacer doble clic en el mismo `.cmd`**.
 3. La primera vez también baja Chromium; tarda. Al terminar imprime `http://127.0.0.1:8080/api/health` y la URL LAN (`http://192.168.x.x:8080`).
 4. En `/admin` de esa org, pega esa URL LAN en **URL del motor en la LAN** y **Guardar**.
 
 No hace falta Git ni Node ni Python ni instalar Docker a mano. El firewall se abre solo en perfil **privado**, puerto 8080.
 
-Si el script no puede bajar GitHub (repo privado o sin internet), Logicbus deja el tag descomprimido en `C:\seo-runtime` y vuelve a ejecutar el mismo `.ps1` (detecta el compose y solo escribe `.env` y levanta Docker).
+Si el script no puede bajar GitHub (repo privado o sin internet), Logicbus deja el tag descomprimido en `C:\seo-runtime` y vuelve a ejecutar el mismo `.cmd` (detecta el compose y solo escribe `.env` y levanta Docker).
 
 ### 2.3 Actualizar el runtime del cliente
 
@@ -267,7 +267,7 @@ Después de verde en Actions:
 2. Crear org, agregar un sitio `https://…`, invitar un segundo Gmail y confirmar que **ve el mismo origin**.
 3. `/admin` (con `platformAdmins`) lista **Clientes**. En **Demostraciones** crea una org tuya, agrega un `https://` de prospecto, **Escanear** y descarga Excel (verde) y PDF (rojo). Restringir un usuario de un cliente y confirmar que ya no entra.
 4. Abrir la org: Sitios → **Escanear** en un origin. El anillo y la tabla se llenan con URLs reales (títulos distintos por página).
-5. `/admin` → cliente → **Descargar instalador**, ejecutar el `.ps1` en un PC con Docker, pegar la URL LAN y comprobar health.
+5. `/admin` → cliente → **Descargar instalador**, doble clic en el `.cmd` en un PC con Docker, pegar la URL LAN y comprobar health.
 6. No hay `.env` en el commit (`git status`).
 
 Detalle de tags y Firebase Hosting: [VERSIONES_GITHUB.md](VERSIONES_GITHUB.md).
@@ -297,7 +297,7 @@ Detalle de tags y Firebase Hosting: [VERSIONES_GITHUB.md](VERSIONES_GITHUB.md).
 | Google cierra el popup | Authorized domains; el origen debe ser `localhost` o HTTPS |
 | No aparece Administración | Falta `platformAdmins/{tuUid}` |
 | Runtime unreachable | Docker Running, IP LAN, firewall, `CORS_ORIGIN` = origen de la cáscara |
-| El .ps1 pide reiniciar | Normal tras instalar Docker. Reinicia y ejecuta **el mismo** instalador |
+| El .cmd pide reiniciar | Normal tras instalar Docker. Reinicia y ejecuta **el mismo** instalador |
 | Sitio SPA sin titles | En el sitio, **Páginas con JavaScript** en Automático o Siempre; `playwright install chromium` en el venv |
 | `docker compose` pide `.env` | En planta usa el instalador de `/admin`; no copies el example a mano |
 | Tras actualizar se perdió el historial | Se usó `docker compose down -v`. No lo hagas; el volumen `runtime-data` es el SQLite |

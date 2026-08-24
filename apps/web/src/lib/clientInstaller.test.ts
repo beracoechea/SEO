@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest";
 import {
   assertInstallerInput,
   buildClientInstaller,
+  buildInstallerCmd,
   defaultShellOrigin,
+  installerCorsAllowlist,
   installerCorsOrigin,
   installerFileName,
   psQuote,
@@ -15,17 +17,19 @@ describe("clientInstaller", () => {
   });
 
   it("nombra el archivo con el cliente", () => {
-    expect(installerFileName("Acme SA de CV")).toBe("Instalar-SEO-Acme_SA_de_CV.ps1");
+    expect(installerFileName("Acme SA de CV")).toBe("Instalar-SEO-Acme_SA_de_CV.cmd");
   });
 
   it("no usa localhost como origen de la cascara", () => {
     expect(defaultShellOrigin("http://localhost:5173")).toBe("");
     expect(defaultShellOrigin("https://seo.web.app")).toBe("https://seo.web.app");
-    expect(installerCorsOrigin("http://localhost:5173")).toBe("https://bgx-seo-monitor.web.app");
-    expect(installerCorsOrigin("https://bgx-seo-monitor.web.app")).toBe("https://bgx-seo-monitor.web.app");
+    expect(installerCorsOrigin("http://localhost:5173")).toContain("https://bgx-seo-monitor.web.app");
+    expect(installerCorsOrigin("http://localhost:5173")).toContain("https://bgx-seo-monitor.firebaseapp.com");
+    expect(installerCorsAllowlist("https://seo.web.app")).toContain("https://seo.web.app");
+    expect(installerCorsAllowlist("https://seo.web.app")).toContain("https://bgx-seo-monitor.web.app");
   });
 
-  it("exige org, firebase y HTTPS publico", () => {
+  it("exige org y firebase; localhost no bloquea el allowlist de produccion", () => {
     expect(() =>
       assertInstallerInput({
         orgId: "",
@@ -43,7 +47,7 @@ describe("clientInstaller", () => {
         corsOrigin: "http://localhost:5173",
         runtimeVersion: "0.1.0",
       }),
-    ).toThrow("installer.corsHttps");
+    ).not.toThrow();
   });
 
   it("incrusta el ORG_ID y no pide editar el env a mano", () => {
@@ -56,7 +60,9 @@ describe("clientInstaller", () => {
     });
     expect(script).toContain("$OrgId = 'org123'");
     expect(script).toContain("$FirebaseProject = 'clima-laboral-e7698'");
-    expect(script).toContain("$CorsOrigin = 'https://seo.web.app'");
+    expect(script).toContain("https://bgx-seo-monitor.web.app");
+    expect(script).toContain("https://bgx-seo-monitor.firebaseapp.com");
+    expect(script).toContain("https://seo.web.app");
     expect(script).toContain("docker compose");
     expect(script).toContain("C:\\seo-runtime");
     expect(script).toContain("desktop.docker.com");
@@ -68,5 +74,21 @@ describe("clientInstaller", () => {
     expect(script).toContain("Register-ScheduledTask");
     expect(script).toContain("actualizar.ps1");
     expect(script).not.toMatch(/(^|\n)\s*docker compose down -v/);
+  });
+
+  it("el archivo descargable es un .cmd que usa el PowerShell de Windows, no la Store", () => {
+    const cmd = buildInstallerCmd({
+      orgId: "org123",
+      orgName: "Acme",
+      firebaseProjectId: "clima-laboral-e7698",
+      corsOrigin: "https://seo.web.app",
+      runtimeVersion: "0.1.0",
+    });
+    expect(cmd).toContain("System32\\WindowsPowerShell\\v1.0\\powershell.exe");
+    expect(cmd).toContain("###LOGICBUS_SEO_PS###");
+    expect(cmd.indexOf("###LOGICBUS_SEO_PS###")).toBe(cmd.lastIndexOf("###LOGICBUS_SEO_PS###"));
+    expect(cmd).toContain("$OrgId = 'org123'");
+    expect(cmd).toContain("@echo off");
+    expect(cmd).not.toContain("Start-Process -FilePath powershell.exe");
   });
 });

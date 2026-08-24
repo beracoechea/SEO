@@ -18,7 +18,42 @@ export function installerFileName(orgName: string): string {
       .replace(/[^\w.-]+/g, "_")
       .replace(/^_+|_+$/g, "")
       .slice(0, 40) || "cliente";
-  return `Instalar-SEO-${slug}.ps1`;
+  return `Instalar-SEO-${slug}.cmd`;
+}
+
+const SYSTEM_POWERSHELL = "%SystemRoot%\\System32\\WindowsPowerShell\\v1.0\\powershell.exe";
+/** Concatenated in the .cmd header so IndexOf does not match the header itself. */
+const PS_MARKER = "###LOGICBUS_SEO_PS###";
+
+function installerCmdHeader(): string {
+  return [
+    "@echo off",
+    "setlocal EnableExtensions",
+    "title Instalar motor SEO Logicbus",
+    `set "PS=${SYSTEM_POWERSHELL}"`,
+    "if not exist \"%PS%\" (",
+    "  echo Falta Windows PowerShell. Viene con Windows 10 y 11: no hace falta la Microsoft Store.",
+    "  pause",
+    "  exit /b 1",
+    ")",
+    "set \"SEO_INSTALL_PS=%TEMP%\\logicbus-seo-install.ps1\"",
+    "echo Preparando instalador...",
+    "\"%PS%\" -NoProfile -ExecutionPolicy Bypass -Command \"$c=Get-Content -LiteralPath '%~f0' -Raw -Encoding UTF8; $m='###'+'LOGICBUS_SEO_PS'+'###'; if ($c.IndexOf($m) -lt 0) { throw 'instalador danado' }; [IO.File]::WriteAllText($env:SEO_INSTALL_PS, $c.Substring($c.IndexOf($m)+$m.Length).TrimStart(), (New-Object Text.UTF8Encoding $false))\"",
+    "if errorlevel 1 (",
+    "  echo No se pudo preparar el instalador.",
+    "  pause",
+    "  exit /b 1",
+    ")",
+    "net session >nul 2>&1",
+    "if errorlevel 1 (",
+    "  echo Se pedira permiso de administrador. Pulsa Si. No abras la Microsoft Store.",
+    "  \"%PS%\" -NoProfile -ExecutionPolicy Bypass -Command \"Start-Process -LiteralPath '%PS%' -Verb RunAs -ArgumentList '-NoProfile','-ExecutionPolicy','Bypass','-File','%SEO_INSTALL_PS%'\"",
+    "  exit /b 0",
+    ")",
+    "\"%PS%\" -NoProfile -ExecutionPolicy Bypass -File \"%SEO_INSTALL_PS%\"",
+    "endlocal",
+    "exit /b %ERRORLEVEL%",
+  ].join("\r\n");
 }
 
 export function defaultShellOrigin(origin: string): string {
@@ -34,16 +69,29 @@ export function defaultShellOrigin(origin: string): string {
   }
 }
 
+export const PRODUCTION_SHELL_ORIGIN = "https://bgx-seo-monitor.web.app";
+export const PRODUCTION_SHELL_ORIGINS = [
+  "https://bgx-seo-monitor.web.app",
+  "https://bgx-seo-monitor.firebaseapp.com",
+] as const;
+
+export function installerCorsAllowlist(pageOrigin?: string): string {
+  const extras = new Set<string>(PRODUCTION_SHELL_ORIGINS);
+  for (const part of String(pageOrigin ?? "").split(",")) {
+    const fromPage = defaultShellOrigin(part);
+    if (fromPage) extras.add(fromPage);
+  }
+  return [...extras].join(",");
+}
+
 export function assertInstallerInput(input: InstallerInput): void {
   if (!input.orgId.trim()) throw new Error("installer.missingOrg");
   if (!input.firebaseProjectId.trim()) throw new Error("installer.missingFirebase");
-  if (!defaultShellOrigin(input.corsOrigin)) throw new Error("installer.corsHttps");
 }
 
 export function buildClientInstaller(input: InstallerInput): string {
   assertInstallerInput(input);
-  const cors = defaultShellOrigin(input.corsOrigin);
-  if (!cors) throw new Error("installer.corsHttps");
+  const cors = installerCorsAllowlist(input.corsOrigin);
   const version = (input.runtimeVersion || "0.1.0").replace(/^v/i, "");
   const tag = `v${version}`;
   const zipTag = `https://github.com/beracoechea/SEO/archive/refs/tags/${tag}.zip`;
@@ -51,11 +99,9 @@ export function buildClientInstaller(input: InstallerInput): string {
   const releases = "https://api.github.com/repos/beracoechea/SEO/releases/latest";
 
   const lines = [
-    "# Instalar / actualizar motor SEO en planta (generado desde /admin).",
-    "# Click derecho > Ejecutar con PowerShell  O:",
-    "#   powershell -ExecutionPolicy Bypass -File .\\" + installerFileName(input.orgName),
-    "# Actualizacion silenciosa (no borra SQLite):",
-    "#   powershell -ExecutionPolicy Bypass -File C:\\seo-runtime\\actualizar.ps1 -Mode Update",
+    "# Instalar / actualizar motor SEO (generado desde la web).",
+    "# Ejecutar el .cmd con doble clic (usa el PowerShell de Windows, no la Store).",
+    "# Actualizacion silenciosa (no borra SQLite): C:\\seo-runtime\\actualizar.ps1 -Mode Update",
     "# NUNCA uses: docker compose down -v   (eso borra el historial).",
     "param(",
     "  [ValidateSet('Install','Update')]",
@@ -127,7 +173,7 @@ export function buildClientInstaller(input: InstallerInput): string {
     "  try { Add-LocalGroupMember -Group 'docker-users' -Member $env:USERNAME -ErrorAction SilentlyContinue } catch {}",
     "  if (Test-Path $exe) { Start-Process $exe }",
     "  if ($code -eq 3010) {",
-    "    Write-Host 'Windows pide reiniciar para terminar Docker. Reinicia este PC y vuelve a ejecutar ESTE MISMO archivo .ps1'",
+    "    Write-Host 'Windows pide reiniciar para terminar Docker. Reinicia este PC y vuelve a hacer doble clic en ESTE MISMO archivo .cmd'",
     "    if ($Mode -ne 'Update') { pause }",
     "    exit 0",
     "  }",
@@ -267,8 +313,9 @@ export function buildClientInstaller(input: InstallerInput): string {
     "function Register-SilentUpdate {",
     "  try {",
     "    Copy-Item -Path $ScriptPath -Destination $UpdaterFile -Force",
+    "    $psExe = Join-Path $env:SystemRoot 'System32\\WindowsPowerShell\\v1.0\\powershell.exe'",
     "    $args = '-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File \"' + $UpdaterFile + '\" -Mode Update'",
-    "    $action = New-ScheduledTaskAction -Execute 'powershell.exe' -Argument $args",
+    "    $action = New-ScheduledTaskAction -Execute $psExe -Argument $args",
     "    $daily = New-ScheduledTaskTrigger -Daily -At 3:20am",
     "    $logon = New-ScheduledTaskTrigger -AtLogOn -User $env:USERNAME",
     "    $settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable -ExecutionTimeLimit (New-TimeSpan -Hours 2)",
@@ -285,7 +332,8 @@ export function buildClientInstaller(input: InstallerInput): string {
     "  } else {",
     "    Write-Host 'Se pide administrador para instalar Docker (si falta) y el firewall de la LAN.'",
     "    $here = $ScriptPath",
-    "    Start-Process -FilePath powershell.exe -Verb RunAs -ArgumentList @('-NoProfile','-ExecutionPolicy','Bypass','-File', $here, '-Mode', $Mode)",
+    "    $psExe = Join-Path $env:SystemRoot 'System32\\WindowsPowerShell\\v1.0\\powershell.exe'",
+    "    Start-Process -FilePath $psExe -Verb RunAs -ArgumentList @('-NoProfile','-ExecutionPolicy','Bypass','-File', $here, '-Mode', $Mode)",
     "    exit 0",
     "  }",
     "}",
@@ -342,7 +390,7 @@ export function buildClientInstaller(input: InstallerInput): string {
     "  $exe = 'C:\\Program Files\\Docker\\Docker\\Docker Desktop.exe'",
     "  if (Test-Path $exe) { Start-Process $exe }",
     "  if (-not (Wait-Docker -Tries 24)) {",
-    "    throw 'Docker Desktop no quedo Running. Si Windows pidio reinicio, reinicia y vuelve a ejecutar este mismo .ps1'",
+    "    throw 'Docker Desktop no quedo Running. Si Windows pidio reinicio, reinicia y vuelve a hacer doble clic en este mismo .cmd'",
     "  }",
     "}",
     "",
@@ -389,12 +437,14 @@ export function buildClientInstaller(input: InstallerInput): string {
   return lines.join("\r\n") + "\r\n";
 }
 
+export function buildInstallerCmd(input: InstallerInput): string {
+  return `${installerCmdHeader()}\r\n${PS_MARKER}\r\n${buildClientInstaller(input)}`;
+}
+
 export const INSTALLER_RUNTIME_VERSION = "0.1.0";
-export const PRODUCTION_SHELL_ORIGIN = "https://bgx-seo-monitor.web.app";
 
 export function installerCorsOrigin(pageOrigin?: string): string {
-  const fromPage = defaultShellOrigin(pageOrigin ?? (typeof window !== "undefined" ? window.location.origin : ""));
-  return fromPage || PRODUCTION_SHELL_ORIGIN;
+  return installerCorsAllowlist(pageOrigin ?? (typeof window !== "undefined" ? window.location.origin : ""));
 }
 
 export function downloadOrgInstaller(org: { id: string; name: string }) {
@@ -409,10 +459,10 @@ export function downloadOrgInstaller(org: { id: string; name: string }) {
 }
 
 export function downloadClientInstaller(input: InstallerInput) {
-  const body = buildClientInstaller(input);
+  const body = buildInstallerCmd(input);
   const bom = new Uint8Array([0xef, 0xbb, 0xbf]);
   const bytes = new TextEncoder().encode(body);
-  const blob = new Blob([bom, bytes], { type: "text/plain;charset=utf-8" });
+  const blob = new Blob([bom, bytes], { type: "application/octet-stream" });
   const link = document.createElement("a");
   link.href = URL.createObjectURL(blob);
   link.download = installerFileName(input.orgName);

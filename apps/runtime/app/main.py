@@ -121,18 +121,31 @@ async def lifespan(_app: FastAPI):
 
 app = FastAPI(title="SEO runtime", version=__version__, lifespan=lifespan)
 
-origins = [
+DEFAULT_CORS_ORIGINS = (
     "http://localhost:5173",
     "http://127.0.0.1:5173",
+    "http://localhost:5174",
+    "http://127.0.0.1:5174",
     "http://localhost:4173",
     "http://127.0.0.1:4173",
     "https://bgx-seo-monitor.web.app",
     "https://bgx-seo-monitor.firebaseapp.com",
-]
-for part in os.getenv("CORS_ORIGIN", "").split(","):
-    extra = part.strip().rstrip("/")
-    if extra and extra not in origins:
-        origins.append(extra)
+)
+
+
+def cors_allow_origins(raw: str | None = None) -> list[str]:
+    merged: list[str] = []
+    seen: set[str] = set()
+    extra = raw if raw is not None else os.getenv("CORS_ORIGIN", "")
+    for part in (*DEFAULT_CORS_ORIGINS, *extra.split(",")):
+        origin = part.strip().rstrip("/")
+        if origin and origin not in seen:
+            seen.add(origin)
+            merged.append(origin)
+    return merged
+
+
+origins = cors_allow_origins()
 
 app.add_middleware(
     CORSMiddleware,
