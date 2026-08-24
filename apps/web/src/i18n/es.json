@@ -182,7 +182,7 @@
   "engine.setupBody": "Sin el motor en este equipo no se puede escanear. Tarda unos minutos la primera vez. Sirve para ti, un consultor o un cliente.",
   "engine.step1": "Pulsa Instalar motor. Se descarga un ZIP (Windows suele bloquear el .cmd suelto).",
   "engine.step2": "Extrae el ZIP y haz doble clic en el .cmd. Si Control inteligente de aplicaciones lo bloquea: clic derecho en el .cmd → Propiedades → Desbloquear.",
-  "engine.step3": "Espera a que la ventana diga Listo (la primera vez baja Python y Chromium; tarda unos minutos). Luego pulsa Ya está listo. No hace falta Docker ni entrar a la BIOS.",
+  "engine.step3": "Espera a que la ventana del instalador diga Listo. El motor queda en segundo plano (sin ventana de Python) y se vuelve a abrir solo. Luego pulsa Ya está listo.",
   "engine.consoleHint": "Si en la consola del navegador ves ERR_CONNECTION_REFUSED a 127.0.0.1:8080, el motor aún no está en este PC: deja terminar el instalador y pulsa Ya está listo.",
   "engine.download": "Descargar instalador",
   "engine.downloading": "Descargando…",

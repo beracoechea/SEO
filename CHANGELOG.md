@@ -14,7 +14,7 @@ El versionado sigue [SemVer](https://semver.org/lang/es/).
 
 ### Fixed
 
-- La cáscara usa `127.0.0.1` en lugar de `localhost` (en Windows `localhost` suele ir a IPv6).
+- El motor corre oculto (`pythonw`, sin consola). Si se cierra o se cae, una tarea lo vuelve a levantar al iniciar sesión y cada 2 minutos.
 
 ## [0.2.0] — 2026-08-23
 

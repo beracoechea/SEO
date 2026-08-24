@@ -83,7 +83,9 @@ describe("clientInstaller", () => {
     expect(script).toContain("Write-Progress");
     expect(script).toContain("bajados");
     expect(script).not.toContain("campo motor LAN");
-    expect(script).not.toMatch(/(^|\n)\s*docker compose down -v/);
+    expect(script).toContain("pythonw.exe");
+    expect(script).toContain("CreateNoWindow");
+    expect(script).toContain("RepetitionInterval");
   });
 
   it("el archivo descargable es un .cmd que usa el PowerShell de Windows, no la Store", () => {

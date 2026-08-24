@@ -164,7 +164,7 @@ Si el script no puede bajar GitHub (repo privado o sin internet), Logicbus deja 
 
 ### 2.3 Actualizar el runtime del cliente
 
-El instalador de `/admin` deja en `C:\seo-runtime\actualizar.ps1` y dos tareas de Windows: **Logicbus SEO runtime** (al iniciar sesión arranca el motor) y **Logicbus SEO runtime update** (cada día a las 03:20). Esa pasada:
+El instalador de `/admin` deja en `C:\seo-runtime\actualizar.ps1` y dos tareas de Windows: **Logicbus SEO runtime** (al iniciar sesión y cada 2 minutos si el motor se cayó; corre **sin ventana**) y **Logicbus SEO runtime update** (cada día a las 03:20). El usuario no tiene que dejar abierta una consola de Python.
 
 1. Si hay un crawl en curso, **no toca nada** (reintenta la próxima vez).
 2. Pregunta a GitHub si hay un tag más nuevo; si no, solo comprueba que el motor esté arriba.

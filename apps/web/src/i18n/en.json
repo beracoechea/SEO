@@ -182,7 +182,7 @@
   "engine.setupBody": "This computer cannot scan until the engine is installed. The first run takes a few minutes. Same flow for you, a consultant, or a client.",
   "engine.step1": "Click Install engine. A ZIP downloads (Windows often blocks a loose .cmd).",
   "engine.step2": "Extract the ZIP and double-click the .cmd. If Smart App Control blocks it: right-click the .cmd → Properties → Unblock.",
-  "engine.step3": "Wait until the window says Ready (the first run downloads Python and Chromium; it takes a few minutes). Then click It’s ready. No Docker or BIOS setup.",
+  "engine.step3": "Wait until the installer window says Ready. The engine stays in the background (no Python window) and comes back on its own. Then click It’s ready.",
   "engine.consoleHint": "If the browser console shows ERR_CONNECTION_REFUSED to 127.0.0.1:8080, the engine is not up on this PC yet: let the installer finish and click It’s ready.",
   "engine.download": "Download installer",
   "engine.downloading": "Downloading…",
