@@ -86,6 +86,10 @@ describe("clientInstaller", () => {
     expect(script).toContain("pythonw.exe");
     expect(script).toContain("CreateNoWindow");
     expect(script).toContain("RepetitionInterval");
+    expect(script).toContain("Register-StartProtocol");
+    expect(script).toContain("Software\\Classes\\logicbus-seo");
+    expect(script).toContain("logicbus-seo://start");
+    expect(script).toContain("-Mode Start");
   });
 
   it("el archivo descargable es un .cmd que usa el PowerShell de Windows, no la Store", () => {

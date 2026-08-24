@@ -7,6 +7,10 @@ El versionado sigue [SemVer](https://semver.org/lang/es/).
 
 ## [Unreleased]
 
+### Added
+
+- El botón **Ya está listo** vuelve a levantar el motor Python en este PC si el usuario lo cerró (protocolo `logicbus-seo://start`, sin tareas extra). Hace falta haber corrido el instalador de `/admin` al menos una vez.
+
 ### Changed
 
 - El instalador de planta ya no usa Docker Desktop: instala Python 3.12 en `C:\seo-runtime\python`, Playwright Chromium y arranca uvicorn. No hace falta BIOS, WSL ni virtualización.

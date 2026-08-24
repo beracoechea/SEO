@@ -3,15 +3,29 @@ import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { downloadOrgInstaller } from "../lib/clientInstaller";
 import { pingRuntime } from "../lib/runtime";
+import { requestLocalRuntimeStart } from "../lib/runtimeLaunch";
 import { IconBtn } from "./IconBtn";
 
+const START_WAIT_MS = 25000;
+const START_POLL_MS = 1500;
+
 export function useRuntimeReady(runtimeUrl: string) {
-  const [status, setStatus] = useState<"checking" | "ready" | "missing">("checking");
+  const [status, setStatus] = useState<"checking" | "ready" | "missing" | "starting">("checking");
 
   const retry = useCallback(async () => {
-    const ok = await pingRuntime(runtimeUrl);
-    setStatus(ok ? "ready" : "missing");
-    return ok;
+    setStatus("starting");
+    requestLocalRuntimeStart();
+    const deadline = Date.now() + START_WAIT_MS;
+    while (Date.now() < deadline) {
+      const ok = await pingRuntime(runtimeUrl);
+      if (ok) {
+        setStatus("ready");
+        return true;
+      }
+      await new Promise((resolve) => window.setTimeout(resolve, START_POLL_MS));
+    }
+    setStatus("missing");
+    return false;
   }, [runtimeUrl]);
 
   useEffect(() => {
@@ -20,7 +34,7 @@ export function useRuntimeReady(runtimeUrl: string) {
     const loop = async () => {
       const ok = await pingRuntime(runtimeUrl);
       if (cancelled) return;
-      setStatus(ok ? "ready" : "missing");
+      setStatus((current) => (current === "starting" ? current : ok ? "ready" : "missing"));
       timer = window.setTimeout(() => void loop(), ok ? 15000 : 8000);
     };
     void loop();
@@ -35,6 +49,7 @@ export function useRuntimeReady(runtimeUrl: string) {
     ready: status === "ready",
     missing: status === "missing",
     checking: status === "checking",
+    starting: status === "starting",
     retry,
   };
 }
@@ -43,11 +58,13 @@ export function RuntimeSetupCard({
   org,
   missing,
   checking,
+  starting,
   onRetry,
 }: {
   org: { id: string; name: string };
   missing: boolean;
   checking: boolean;
+  starting?: boolean;
   onRetry: () => void | Promise<unknown>;
 }) {
   const { t } = useTranslation();
@@ -55,10 +72,10 @@ export function RuntimeSetupCard({
   const [error, setError] = useState<string | null>(null);
   const [downloading, setDownloading] = useState(false);
 
-  if (checking && !missing) {
+  if (checking && !missing && !starting) {
     return <p className="muted">{t("engine.checking")}</p>;
   }
-  if (!missing) return null;
+  if (!missing && !starting) return null;
 
   function download() {
     if (downloading) return;
@@ -85,6 +102,7 @@ export function RuntimeSetupCard({
         <li>{t("engine.step3")}</li>
       </ol>
       <p className="muted">{t("engine.consoleHint")}</p>
+      {starting ? <div className="banner ok">{t("engine.starting")}</div> : null}
       {note ? <div className="banner ok">{note}</div> : null}
       {error ? <div className="banner warn">{error}</div> : null}
       <div className="row" style={{ flexWrap: "wrap", gap: 10 }}>
@@ -92,13 +110,14 @@ export function RuntimeSetupCard({
           label={downloading ? t("engine.downloading") : t("engine.download")}
           tone="accent"
           showLabel
-          disabled={downloading}
+          disabled={downloading || starting}
           onClick={() => download()}
           icon={<Download size={18} />}
         />
         <IconBtn
-          label={t("engine.retry")}
+          label={starting ? t("engine.startingShort") : t("engine.retry")}
           showLabel
+          disabled={starting}
           onClick={() => void onRetry()}
           icon={<RefreshCw size={18} />}
         />

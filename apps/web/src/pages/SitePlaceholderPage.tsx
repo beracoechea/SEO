@@ -222,6 +222,7 @@ export function SitePlaceholderPage() {
           org={{ id: org.id, name: org.name }}
           missing={engine.missing}
           checking={engine.checking}
+          starting={engine.starting}
           onRetry={engine.retry}
         />
       ) : null}

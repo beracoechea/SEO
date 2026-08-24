@@ -156,7 +156,7 @@ Esto es lo que se hace en el PC de planta. Logicbus ya tiene la cáscara en HTTP
 1. Extrae el ZIP. **Doble clic** en el `.cmd`. Si Control inteligente de aplicaciones lo bloquea: clic derecho → **Propiedades** → **Desbloquear**. Si SmartScreen dice “Windows protegió tu PC”, **Más información** → **Ejecutar de todas formas**.
 2. La primera vez baja Python (en `C:\seo-runtime\python`) y Chromium. Tarda varios minutos. No hace falta Docker ni virtualización.
 3. Al terminar imprime `http://127.0.0.1:8080/api/health`.
-4. En la cáscara, en este mismo PC, pulsa **Ya está listo**. No hace falta pegar una URL LAN si escaneas desde esta máquina.
+4. En la cáscara, en este mismo PC, pulsa **Ya está listo**. Ese botón también **vuelve a arrancar el motor** si lo cerraste (Windows puede pedir permiso una vez: Abrir Logicbus SEO). No hace falta pegar una URL LAN si escaneas desde esta máquina.
 
 No hace falta Git ni Node ni instalar Python o Docker a mano. El firewall se intenta abrir en perfil **privado**, puerto 8080; si no hay permisos, en este mismo PC el motor igual funciona.
 
@@ -164,7 +164,7 @@ Si el script no puede bajar GitHub (repo privado o sin internet), Logicbus deja 
 
 ### 2.3 Actualizar el runtime del cliente
 
-El instalador de `/admin` deja en `C:\seo-runtime\actualizar.ps1` y dos tareas de Windows: **Logicbus SEO runtime** (al iniciar sesión y cada 2 minutos si el motor se cayó; corre **sin ventana**) y **Logicbus SEO runtime update** (cada día a las 03:20). El usuario no tiene que dejar abierta una consola de Python.
+El instalador de `/admin` deja en `C:\seo-runtime\actualizar.ps1` y dos tareas de Windows: **Logicbus SEO runtime** (al iniciar sesión y cada 2 minutos si el motor se cayó; corre **sin ventana**) y **Logicbus SEO runtime update** (cada día a las 03:20). También registra `logicbus-seo://start` para que **Ya está listo** arranque el motor desde la web si lo cerraste. El usuario no tiene que dejar abierta una consola de Python.
 
 1. Si hay un crawl en curso, **no toca nada** (reintenta la próxima vez).
 2. Pregunta a GitHub si hay un tag más nuevo; si no, solo comprueba que el motor esté arriba.
@@ -288,7 +288,7 @@ Detalle de tags y Firebase Hosting: [VERSIONES_GITHUB.md](VERSIONES_GITHUB.md).
 | Google cierra el popup | Authorized domains; el origen debe ser `localhost` o HTTPS |
 | No aparece Administración | Falta `platformAdmins/{tuUid}` |
 | Runtime unreachable | Motor en marcha (`http://127.0.0.1:8080/api/health`), IP LAN, firewall, `CORS_ORIGIN` = origen de la cáscara |
-| `ERR_CONNECTION_REFUSED` a `127.0.0.1:8080` | El motor no está en este PC. Deja terminar el `.cmd` y pulsa **Ya está listo**. |
+| `ERR_CONNECTION_REFUSED` a `127.0.0.1:8080` | El motor no está en este PC. Deja terminar el `.cmd` y pulsa **Ya está listo** (si ya estaba instalado y lo cerraste, el botón lo levanta). Si Windows no pregunta “Abrir Logicbus SEO”, vuelve a correr el instalador una vez. |
 | El instalador pide virtualización / Docker | Versión vieja del ZIP. Vuelve a **Descargar instalador** desde `/admin` (el motor ya no usa Docker). |
 | Puerto 8080 ocupado | Cierra Docker Desktop u otro programa en 8080 y reintenta el `.cmd` |
 | Sitio SPA sin titles | En el sitio, **Páginas con JavaScript** en Automático o Siempre; `playwright install chromium` en el venv |
