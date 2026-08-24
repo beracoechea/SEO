@@ -7,9 +7,9 @@ Hay **dos piezas**. No se instalan igual:
 | Pieza | Quién la corre | Dónde | Para qué |
 |---|---|---|---|
 | Cáscara web (`apps/web`) | Logicbus (nosotros) | HTTPS (local o Firebase Hosting) | Login Google, orgs, sitios, equipo, **administración** |
-| Runtime (`apps/runtime`) | Cada cliente, en su red | Docker en un PC/servidor de planta | Crawler, historial SQLite. **Los crawls no salen de su LAN** |
+| Runtime (`apps/runtime`) | Cada cliente, en su red | Python embebido en un PC de planta (`C:\seo-runtime`) | Crawler, historial SQLite. **Los crawls no salen de su LAN** |
 
-El cliente **no** publica la web. El cliente **sí** levanta el runtime con Docker en su LAN. En desarrollo la cáscara arranca el motor sola; no hay pantalla de Ajustes.
+El cliente **no** publica la web. El cliente **sí** levanta el runtime con el instalador de `/admin` (doble clic; no hace falta Docker ni BIOS). En desarrollo la cáscara arranca el motor sola; no hay pantalla de Ajustes.
 
 Repositorio: https://github.com/beracoechea/SEO
 
@@ -23,18 +23,17 @@ Ficha para ventas y personas no técnicas: **[PARA_MARKETING.txt](PARA_MARKETING
 
 - Git
 - Node.js 22 LTS (o 20+)
-- Python 3.12
-- Docker Desktop (para probar el runtime como el cliente)
+- Python 3.12 (para desarrollo; el cliente no lo instala a mano)
 - Cuenta Google y un proyecto Firebase (Auth Google + Firestore)
 
 ### En el PC/servidor del cliente
 
 - Windows 10/11
-- Red LAN estable; el puerto **8080** abierto **solo en la red interna** (no a internet)
+- Red LAN estable; el puerto **8080** abierto **solo en la red interna** si otro PC va a escanear (en el mismo equipo no hace falta)
 - Un Google Workspace / Gmail con el que van a entrar a la cáscara
-- Internet la primera vez (el instalador baja Docker Desktop si falta, y Chromium)
+- Internet la primera vez (el instalador baja Python y Chromium)
 
-No hace falta Node, Python ni instalar Docker a mano. El ZIP de `/admin` lo hace.
+No hace falta Node, ni instalar Python o Docker a mano. El ZIP de `/admin` lo hace.
 
 ---
 
@@ -111,9 +110,9 @@ uvicorn app.main:app --reload --port 8080
 
 Comprueba: http://localhost:8080/api/health debe devolver `"ok": true`.
 
-### 1.5 Runtime con Docker (como el cliente)
+### 1.5 Runtime con Docker (solo Logicbus, opcional)
 
-Desde la **raíz** del repo:
+Desde la **raíz** del repo, si quieres probar el motor en un contenedor:
 
 ```powershell
 copy apps\runtime\.env.example apps\runtime\.env
@@ -122,14 +121,14 @@ copy apps\runtime\.env.example apps\runtime\.env
 docker compose up -d --build
 ```
 
-Health: http://localhost:8080/api/health  
-Parar: `docker compose down` (el volumen `runtime-data` se conserva; no borres los crawls).
+Health: http://127.0.0.1:8080/api/health  
+Parar: `docker compose down` (el volumen `runtime-data` se conserva). El **cliente no usa este camino**.
 
 ### 1.6 Primer escaneo (salud técnica)
 
 En **Sitios**, pulsa **Escanear** en la tarjeta. El motor pide de verdad esa web: home, `robots.txt`, sitemap (cuenta y URLs) y sigue enlaces internos del mismo host hasta el tope de la org (por defecto 20 000 URLs, varias peticiones en paralelo). Title, H1, meta, canonical, ALT, tiempos y score salen de esas respuestas, no de un stub.
 
-Si el sitio está detrás de Cloudflare, el runtime usa un cliente que suele pasar el challenge; un corte de conexión no tira el escaneo entero. Sitios SPA (React, Next, Vue) se re-piden con Chromium cuando el HTML llega vacío. Solo corre **un** crawl a la vez. Los demás sitios quedan en la **cola** (Sitios): se pueden subir, bajar, sacar o **ejecutar ahora** (corta el que corre y el interrumpido pasa al siguiente puesto). Escanear se apaga si ese sitio ya está en cola. En cada sitio puedes programar escaneo automático (diario, cada 3 días, semanal o mensual); el PC/Docker del runtime tiene que seguir encendido. Un sitio grande (p. ej. ~14 000 URLs) tarda del orden de **decenas de minutos**, no una jornada. Con render JS en **siempre**, espera más.
+Si el sitio está detrás de Cloudflare, el runtime usa un cliente que suele pasar el challenge; un corte de conexión no tira el escaneo entero. Sitios SPA (React, Next, Vue) se re-piden con Chromium cuando el HTML llega vacío. Solo corre **un** crawl a la vez. Los demás sitios quedan en la **cola** (Sitios): se pueden subir, bajar, sacar o **ejecutar ahora** (corta el que corre y el interrumpido pasa al siguiente puesto). Escanear se apaga si ese sitio ya está en cola. En cada sitio puedes programar escaneo automático (diario, cada 3 días, semanal o mensual); el PC del runtime tiene que seguir encendido. Un sitio grande (p. ej. ~14 000 URLs) tarda del orden de **decenas de minutos**, no una jornada. Con render JS en **siempre**, espera más.
 
 El historial queda en SQLite local. No es Core Web Vitals de laboratorio.
 
@@ -141,9 +140,9 @@ En `/admin` → **Demostraciones** el operador crea orgs propias (no son un clie
 
 ---
 
-## 2. Instalar el runtime en un cliente (Docker)
+## 2. Instalar el runtime en un cliente
 
-Esto es lo que se hace en el PC de planta. Logicbus ya tiene la cáscara en HTTPS y la org creada. **El cliente no edita `.env` ni clona el repo.** El instalador sale de `/admin` de esa org.
+Esto es lo que se hace en el PC de planta. Logicbus ya tiene la cáscara en HTTPS y la org creada. **El cliente no edita `.env` ni clona el repo ni toca la BIOS.** El instalador sale de `/admin` de esa org.
 
 ### 2.1 Lo que Logicbus hace en `/admin`
 
@@ -154,25 +153,24 @@ Esto es lo que se hace en el PC de planta. Logicbus ya tiene la cáscara en HTTP
 
 ### 2.2 En el PC del cliente
 
-1. Extrae el ZIP. **Doble clic** en el `.cmd` (no “Ejecutar como administrador”: Docker Desktop no responde en esa ventana y el navegador muestra `ERR_CONNECTION_REFUSED` a `localhost:8080`). Si Control inteligente de aplicaciones lo bloquea: clic derecho → **Propiedades** → **Desbloquear**. Si SmartScreen dice “Windows protegió tu PC”, **Más información** → **Ejecutar de todas formas**.
-2. Si no hay Docker, el script pide administrador **solo** para instalarlo (~500 MB) y el firewall. Si Windows pide reiniciar, reinicia y **vuelve a hacer doble clic en el mismo `.cmd`** (sin administrador).
-3. Deja Docker Desktop **Running** (ballena quieta). La primera vez baja Chromium; tarda. Al terminar imprime `http://127.0.0.1:8080/api/health`.
+1. Extrae el ZIP. **Doble clic** en el `.cmd`. Si Control inteligente de aplicaciones lo bloquea: clic derecho → **Propiedades** → **Desbloquear**. Si SmartScreen dice “Windows protegió tu PC”, **Más información** → **Ejecutar de todas formas**.
+2. La primera vez baja Python (en `C:\seo-runtime\python`) y Chromium. Tarda varios minutos. No hace falta Docker ni virtualización.
+3. Al terminar imprime `http://127.0.0.1:8080/api/health`.
 4. En la cáscara, en este mismo PC, pulsa **Ya está listo**. No hace falta pegar una URL LAN si escaneas desde esta máquina.
 
-No hace falta Git ni Node ni Python ni instalar Docker a mano. El firewall se abre solo en perfil **privado**, puerto 8080.
+No hace falta Git ni Node ni instalar Python o Docker a mano. El firewall se intenta abrir en perfil **privado**, puerto 8080; si no hay permisos, en este mismo PC el motor igual funciona.
 
-Si el script no puede bajar GitHub (repo privado o sin internet), Logicbus deja el tag descomprimido en `C:\seo-runtime` y vuelve a ejecutar el mismo `.cmd` (detecta el compose y solo escribe `.env` y levanta Docker).
+Si el script no puede bajar GitHub (repo privado o sin internet), Logicbus deja el tag descomprimido en `C:\seo-runtime` y vuelve a ejecutar el mismo `.cmd` (detecta `apps\runtime`, escribe `.env` e instala Python).
 
 ### 2.3 Actualizar el runtime del cliente
 
-El instalador de `/admin` deja en `C:\seo-runtime\actualizar.ps1` y una tarea de Windows (**Logicbus SEO runtime update**): cada día a las 03:20 y al iniciar sesión. Esa pasada:
+El instalador de `/admin` deja en `C:\seo-runtime\actualizar.ps1` y dos tareas de Windows: **Logicbus SEO runtime** (al iniciar sesión arranca el motor) y **Logicbus SEO runtime update** (cada día a las 03:20). Esa pasada:
 
 1. Si hay un crawl en curso, **no toca nada** (reintenta la próxima vez).
-2. Si Docker Desktop no está Running, omite esa pasada.
-3. Pregunta a GitHub si hay un tag más nuevo; si no, no reconstruye.
-4. Hace `docker compose stop` (SIGTERM). El runtime vacía el WAL de SQLite (`PRAGMA wal_checkpoint`) al apagar.
-5. Copia el código nuevo **sin pisar** `deploy\cliente\.env` (extras se conservan).
-6. `docker compose up -d --build` — el volumen `runtime-data` **no se borra**.
+2. Pregunta a GitHub si hay un tag más nuevo; si no, solo comprueba que el motor esté arriba.
+3. Detiene uvicorn (el runtime vacía el WAL de SQLite al apagar).
+4. Copia el código nuevo **sin pisar** `apps\runtime\.env` ni `C:\seo-runtime\data`.
+5. `pip install` + arranque de uvicorn — el historial SQLite **no se borra**.
 
 A mano (misma regla):
 
@@ -181,14 +179,7 @@ cd C:\seo-runtime
 powershell -ExecutionPolicy Bypass -File .\actualizar.ps1 -Mode Update
 ```
 
-o:
-
-```powershell
-docker compose -f deploy\cliente\docker-compose.yml --env-file deploy\cliente\.env stop
-docker compose -f deploy\cliente\docker-compose.yml --env-file deploy\cliente\.env up -d --build
-```
-
-**Nunca** `docker compose down -v`: eso tira el historial.
+**Nunca** borres `C:\seo-runtime\data`: ahí está el historial.
 
 ### 2.4 Qué no hacer en el cliente
 
@@ -267,7 +258,7 @@ Después de verde en Actions:
 2. Crear org, agregar un sitio `https://…`, invitar un segundo Gmail y confirmar que **ve el mismo origin**.
 3. `/admin` (con `platformAdmins`) lista **Clientes**. En **Demostraciones** crea una org tuya, agrega un `https://` de prospecto, **Escanear** y descarga Excel (verde) y PDF (rojo). Restringir un usuario de un cliente y confirmar que ya no entra.
 4. Abrir la org: Sitios → **Escanear** en un origin. El anillo y la tabla se llenan con URLs reales (títulos distintos por página).
-5. `/admin` → cliente → **Descargar instalador**, extrae el ZIP, doble clic en el `.cmd` en un PC con Docker, pegar la URL LAN y comprobar health.
+5. `/admin` → cliente → **Descargar instalador**, extrae el ZIP, doble clic en el `.cmd`, esperar health y pulsar **Ya está listo**.
 6. No hay `.env` en el commit (`git status`).
 
 Detalle de tags y Firebase Hosting: [VERSIONES_GITHUB.md](VERSIONES_GITHUB.md).
@@ -281,8 +272,8 @@ Detalle de tags y Firebase Hosting: [VERSIONES_GITHUB.md](VERSIONES_GITHUB.md).
 | Web en local | `cd apps\web` → `npm run dev` |
 | Tests web | `cd apps\web` → `npm test` |
 | Runtime local | `cd apps\runtime` → `uvicorn app.main:app --port 8080` |
-| Runtime Docker (dev) | `docker compose up -d --build` |
-| Runtime Docker (cliente) | `/admin` → Descargar instalador |
+| Runtime Docker (solo Logicbus) | `docker compose up -d --build` |
+| Runtime en cliente | `/admin` → Descargar instalador (Python en `C:\seo-runtime`) |
 | Tester completo local | `.\scripts\verify.ps1` |
 | Instalar freno de push | `.\scripts\install-git-hooks.ps1` |
 | Publicar cáscara | solo con Actions verde; ver `docs/VERSIONES_GITHUB.md` |
@@ -296,11 +287,10 @@ Detalle de tags y Firebase Hosting: [VERSIONES_GITHUB.md](VERSIONES_GITHUB.md).
 | Login pide claves de Firebase | Archivo en `apps/web/.env.local` (no solo en la raíz) y **reiniciar** `npm run dev` |
 | Google cierra el popup | Authorized domains; el origen debe ser `localhost` o HTTPS |
 | No aparece Administración | Falta `platformAdmins/{tuUid}` |
-| Runtime unreachable | Docker Running, IP LAN, firewall, `CORS_ORIGIN` = origen de la cáscara |
-| `ERR_CONNECTION_REFUSED` a `localhost:8080` | El motor no está en este PC. El `.cmd` se ejecutó como administrador, o Docker Desktop no está Running. Doble clic en el `.cmd` **sin** administrador; espera `http://127.0.0.1:8080/api/health` |
-| El instalador “no detecta Docker” | Misma causa: ventana de administrador. Abre Docker Desktop con tu usuario (ballena quieta) y reintenta el `.cmd` con doble clic |
-| El .cmd pide reiniciar | Normal tras instalar Docker. Reinicia y ejecuta **el mismo** instalador **sin** administrador |
+| Runtime unreachable | Motor en marcha (`http://127.0.0.1:8080/api/health`), IP LAN, firewall, `CORS_ORIGIN` = origen de la cáscara |
+| `ERR_CONNECTION_REFUSED` a `127.0.0.1:8080` | El motor no está en este PC. Deja terminar el `.cmd` y pulsa **Ya está listo**. |
+| El instalador pide virtualización / Docker | Versión vieja del ZIP. Vuelve a **Descargar instalador** desde `/admin` (el motor ya no usa Docker). |
+| Puerto 8080 ocupado | Cierra Docker Desktop u otro programa en 8080 y reintenta el `.cmd` |
 | Sitio SPA sin titles | En el sitio, **Páginas con JavaScript** en Automático o Siempre; `playwright install chromium` en el venv |
-| `docker compose` pide `.env` | En planta usa el instalador de `/admin`; no copies el example a mano |
-| Tras actualizar se perdió el historial | Se usó `docker compose down -v`. No lo hagas; el volumen `runtime-data` es el SQLite |
+| Tras actualizar se perdió el historial | Se borró `C:\seo-runtime\data`. No lo hagas; ahí está el SQLite |
 | Push rechazado | `.\scripts\verify.ps1` en rojo; lee el `FAIL` |

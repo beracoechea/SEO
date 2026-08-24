@@ -1,13 +1,7 @@
-# Paquete Docker para el PC/servidor del cliente
+# Compose opcional (solo Logicbus)
 
-No instales Node ni Python en la planta. El instalador de `/admin` instala **Docker Desktop** si falta.
+El cliente **no** usa esta carpeta. El instalador de `/admin` deja Python embebido en `C:\seo-runtime` y arranca uvicorn. No instala Docker.
 
-El camino normal **no** es copiar este folder a mano:
+Este `docker-compose.yml` sirve para que Logicbus pruebe el runtime en un contenedor, igual que en desarrollo. Guía: [docs/INSTALACION.md](../../docs/INSTALACION.md) sección 1.5.
 
-1. En la cáscara: `/admin` → el cliente → **Descargar instalador**.
-2. En el PC de planta: extrae el ZIP y doble clic en el `.cmd` (administrador). Si Control inteligente de aplicaciones bloquea el `.cmd` suelto, usa el del ZIP y desbloquéalo en Propiedades.
-3. Pegar en `/admin` la URL LAN que imprime el script.
-
-El mismo instalador deja `C:\seo-runtime\actualizar.ps1` y una tarea de Windows: actualiza el motor en segundo plano **sin** `docker compose down -v` (el historial SQLite se conserva).
-
-Detalle: [docs/INSTALACION.md](../../docs/INSTALACION.md) sección 2.
+El historial del cliente vive en `C:\seo-runtime\data`. No borres esa carpeta.

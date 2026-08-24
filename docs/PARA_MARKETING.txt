@@ -48,10 +48,10 @@ SÍ ES
   el detalle de cada URL.
 - Multi-empresa: cada cliente entra con su cuenta Google y
   solo ve sus sitios.
-  - Autohospedado en planta: un PC o servidor con Docker en
-    la red interna. El historial no sale de ahí.
+  - Autohospedado en planta: un PC en la red interna.
+    El historial no sale de ahí.
     Logicbus genera un instalador desde Administración
-    (un archivo PowerShell). Instala Docker si hace falta.
+    (un archivo). Doble clic; no hace falta Docker ni BIOS.
     El cliente no configura IDs.
 
 NO ES (no lo prometas)
@@ -140,10 +140,10 @@ OBJECIONES FRECUENTES
   en su LAN. Se complementan; no las reemplazamos.
 
   “¿Van a meter un agente en nuestro servidor?”
-  Un contenedor Docker en un PC de la red interna, puerto
+  Un programa en un PC de la red interna, puerto
   8080 solo en LAN. Login con Google. El historial del crawl
   no sube a Firebase. Logicbus deja un instalador; no hay
-  que editar archivos.
+  que editar archivos ni Docker.
 
   “Nuestra web es de esas que cargan con JavaScript.”
   Justamente: el monitor puede renderizar esas páginas.
@@ -200,7 +200,7 @@ a escanear.
 ============================================================
 
 Repo: https://github.com/beracoechea/SEO
-Instalación y Docker: docs/INSTALACION.md
+Instalación: docs/INSTALACION.md
 Versiones y publicación: docs/VERSIONES_GITHUB.md
 
 Si marketing necesita una captura o un PDF de ejemplo,

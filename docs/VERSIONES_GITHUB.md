@@ -17,7 +17,7 @@ Hay **dos artefactos**, no uno:
 | Runtime (`apps/runtime`) | Servidor / PC de cada empresa (LAN) | Crawler (HTTP + render JS), SQLite, historial |
 
 - Publicar la web **no** despliega el crawler en las oficinas.
-- Actualizar el runtime es un release Docker / zip que cada org instala.
+- Actualizar el runtime es el ZIP/instalador de `/admin` que cada org ejecuta (Python en `C:\seo-runtime`).
 - Firebase Auth + Firestore son el control plane compartido (usuarios y links). El proyecto Firebase de **producción** no se mezcla con el de desarrollo.
 - El historial del crawl no sube a Firebase.
 - Ficha comercial (sin jerga de instalación): [PARA_MARKETING.txt](PARA_MARKETING.txt).

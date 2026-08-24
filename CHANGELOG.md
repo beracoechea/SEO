@@ -7,9 +7,13 @@ El versionado sigue [SemVer](https://semver.org/lang/es/).
 
 ## [Unreleased]
 
+### Changed
+
+- El instalador de planta ya no usa Docker Desktop: instala Python 3.12 en `C:\seo-runtime\python`, Playwright Chromium y arranca uvicorn. No hace falta BIOS, WSL ni virtualización.
+- El historial SQLite queda en `C:\seo-runtime\data` (se conserva al actualizar). El `.env` del cliente vive en `apps\runtime\.env`.
+
 ### Fixed
 
-- El instalador ya no corre entero como administrador: Docker Desktop no responde en esa ventana y el motor no arranca (`ERR_CONNECTION_REFUSED` en `localhost:8080`).
 - La cáscara usa `127.0.0.1` en lugar de `localhost` (en Windows `localhost` suele ir a IPv6).
 
 ## [0.2.0] — 2026-08-23

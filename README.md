@@ -7,7 +7,7 @@ Herramienta de auditoría técnica de sitios (HTTP, on-page, diffs, incidentes).
 
 ## Cómo correrlo e instalarlo en un cliente
 
-La guía completa (desarrollo, Docker en planta, y el **tester que bloquea un push roto**) está en:
+La guía completa (desarrollo, instalador en planta, y el **tester que bloquea un push roto**) está en:
 
 **[docs/INSTALACION.md](docs/INSTALACION.md)**
 
@@ -32,8 +32,8 @@ https://github.com/beracoechea/SEO
 
 ```
 apps/web             SPA React + Vite
-apps/runtime         FastAPI (Docker)
-deploy/cliente       Compose listo para la planta
+apps/runtime         FastAPI (Python; en planta sin Docker)
+deploy/cliente       Compose opcional solo para Logicbus
 scripts/verify.ps1   Tester local
 .github/workflows    Tester en cada PR / push a main
 ```
