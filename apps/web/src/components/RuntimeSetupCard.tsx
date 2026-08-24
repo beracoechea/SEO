@@ -21,7 +21,7 @@ export function useRuntimeReady(runtimeUrl: string) {
       const ok = await pingRuntime(runtimeUrl);
       if (cancelled) return;
       setStatus(ok ? "ready" : "missing");
-      timer = window.setTimeout(() => void loop(), ok ? 15000 : 4000);
+      timer = window.setTimeout(() => void loop(), ok ? 15000 : 8000);
     };
     void loop();
     return () => {
@@ -78,6 +78,13 @@ export function RuntimeSetupCard({
   return (
     <div className="card stack engine-setup">
       <h2 style={{ margin: 0, fontSize: 18 }}>{t("engine.setupTitle")}</h2>
+      <p className="muted">{t("engine.setupBody")}</p>
+      <ol className="engine-steps">
+        <li>{t("engine.step1")}</li>
+        <li>{t("engine.step2")}</li>
+        <li>{t("engine.step3")}</li>
+      </ol>
+      <p className="muted">{t("engine.consoleHint")}</p>
       {note ? <div className="banner ok">{note}</div> : null}
       {error ? <div className="banner warn">{error}</div> : null}
       <div className="row" style={{ flexWrap: "wrap", gap: 10 }}>

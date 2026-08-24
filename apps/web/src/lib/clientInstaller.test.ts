@@ -72,7 +72,7 @@ describe("clientInstaller", () => {
     expect(script).toContain("Install-DockerDesktop");
     expect(script).toContain("accept-license");
     expect(script).toContain("-Mode Update");
-    expect(script).toContain("--env-file $EnvFile stop");
+    expect(script).toContain("'--env-file',$EnvFile,'stop'");
     expect(script).toContain("runtime-data");
     expect(script).toContain("Register-ScheduledTask");
     expect(script).toContain("actualizar.ps1");
@@ -99,6 +99,9 @@ describe("clientInstaller", () => {
     expect(cmd).toContain("Write-Progress");
     expect(cmd).toContain("function Wait-Docker");
     expect(cmd).toContain("if (Test-DockerReady) { return $true }");
+    expect(cmd).toContain("Get-DockerExe");
+    expect(cmd).toContain("SetupAdmin");
+    expect(cmd).not.toContain("net session");
     expect(cmd).toContain("'###'+'LOGICBUS_SEO_PS'+'###'");
     expect(cmd.charCodeAt(0)).toBe("@".charCodeAt(0));
     expect(cmd).not.toContain("Start-Process -FilePath powershell.exe");

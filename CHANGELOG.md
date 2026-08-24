@@ -7,6 +7,11 @@ El versionado sigue [SemVer](https://semver.org/lang/es/).
 
 ## [Unreleased]
 
+### Fixed
+
+- El instalador ya no corre entero como administrador: Docker Desktop no responde en esa ventana y el motor no arranca (`ERR_CONNECTION_REFUSED` en `localhost:8080`).
+- La cáscara usa `127.0.0.1` en lugar de `localhost` (en Windows `localhost` suele ir a IPv6).
+
 ## [0.2.0] — 2026-08-23
 
 ### Removed

@@ -85,12 +85,17 @@ export type PageSnap = {
   diff?: string;
 };
 
+/** Windows often resolves localhost to ::1; the runtime binds IPv4 (127.0.0.1). */
+export function loopbackRuntimeUrl(url: string): string {
+  return url.replace(/^(https?:\/\/)(localhost|\[::1\])(?=[:/?#]|$)/i, "$1127.0.0.1");
+}
+
 export function resolvedRuntimeUrl(orgUrl?: string | null): string {
   const stored = (orgUrl || "").trim().replace(/\/$/, "");
-  if (stored) return stored;
+  if (stored) return loopbackRuntimeUrl(stored);
   if (import.meta.env.DEV) return "/runtime";
   const env = (import.meta.env.VITE_RUNTIME_URL || "").trim().replace(/\/$/, "");
-  if (env) return env;
+  if (env) return loopbackRuntimeUrl(env);
   return "http://127.0.0.1:8080";
 }
 

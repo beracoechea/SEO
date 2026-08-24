@@ -154,10 +154,10 @@ Esto es lo que se hace en el PC de planta. Logicbus ya tiene la cáscara en HTTP
 
 ### 2.2 En el PC del cliente
 
-1. Extrae el ZIP. **Doble clic** en el `.cmd` (no lo abras con la Microsoft Store). Acepta administrador. Si Control inteligente de aplicaciones lo bloquea: clic derecho → **Propiedades** → **Desbloquear**. Si SmartScreen dice “Windows protegió tu PC”, **Más información** → **Ejecutar de todas formas**.
-2. Si no hay Docker, el script descarga e instala **Docker Desktop** (~500 MB). Si Windows pide reiniciar, reinicia y **vuelve a hacer doble clic en el mismo `.cmd`**.
-3. La primera vez también baja Chromium; tarda. Al terminar imprime `http://127.0.0.1:8080/api/health` y la URL LAN (`http://192.168.x.x:8080`).
-4. En `/admin` de esa org, pega esa URL LAN en **URL del motor en la LAN** y **Guardar**.
+1. Extrae el ZIP. **Doble clic** en el `.cmd` (no “Ejecutar como administrador”: Docker Desktop no responde en esa ventana y el navegador muestra `ERR_CONNECTION_REFUSED` a `localhost:8080`). Si Control inteligente de aplicaciones lo bloquea: clic derecho → **Propiedades** → **Desbloquear**. Si SmartScreen dice “Windows protegió tu PC”, **Más información** → **Ejecutar de todas formas**.
+2. Si no hay Docker, el script pide administrador **solo** para instalarlo (~500 MB) y el firewall. Si Windows pide reiniciar, reinicia y **vuelve a hacer doble clic en el mismo `.cmd`** (sin administrador).
+3. Deja Docker Desktop **Running** (ballena quieta). La primera vez baja Chromium; tarda. Al terminar imprime `http://127.0.0.1:8080/api/health`.
+4. En la cáscara, en este mismo PC, pulsa **Ya está listo**. No hace falta pegar una URL LAN si escaneas desde esta máquina.
 
 No hace falta Git ni Node ni Python ni instalar Docker a mano. El firewall se abre solo en perfil **privado**, puerto 8080.
 
@@ -297,7 +297,9 @@ Detalle de tags y Firebase Hosting: [VERSIONES_GITHUB.md](VERSIONES_GITHUB.md).
 | Google cierra el popup | Authorized domains; el origen debe ser `localhost` o HTTPS |
 | No aparece Administración | Falta `platformAdmins/{tuUid}` |
 | Runtime unreachable | Docker Running, IP LAN, firewall, `CORS_ORIGIN` = origen de la cáscara |
-| El .cmd pide reiniciar | Normal tras instalar Docker. Reinicia y ejecuta **el mismo** instalador |
+| `ERR_CONNECTION_REFUSED` a `localhost:8080` | El motor no está en este PC. El `.cmd` se ejecutó como administrador, o Docker Desktop no está Running. Doble clic en el `.cmd` **sin** administrador; espera `http://127.0.0.1:8080/api/health` |
+| El instalador “no detecta Docker” | Misma causa: ventana de administrador. Abre Docker Desktop con tu usuario (ballena quieta) y reintenta el `.cmd` con doble clic |
+| El .cmd pide reiniciar | Normal tras instalar Docker. Reinicia y ejecuta **el mismo** instalador **sin** administrador |
 | Sitio SPA sin titles | En el sitio, **Páginas con JavaScript** en Automático o Siempre; `playwright install chromium` en el venv |
 | `docker compose` pide `.env` | En planta usa el instalador de `/admin`; no copies el example a mano |
 | Tras actualizar se perdió el historial | Se usó `docker compose down -v`. No lo hagas; el volumen `runtime-data` es el SQLite |
