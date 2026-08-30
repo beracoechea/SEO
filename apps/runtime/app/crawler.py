@@ -18,7 +18,7 @@ from uuid import uuid4
 
 import httpx
 
-from app.browser import JsRenderer, js_crawl_enabled, needs_js_render, normalize_render_js
+from app.browser import JsRenderer, js_crawl_enabled, needs_js_render, normalize_render_js, resolved_js_status
 from app.db import connect
 from app.indexation import robots_directives
 from app.parse import (
@@ -354,8 +354,8 @@ async def enrich_with_js(
     rendered = await renderer.render(fetch.final or url)
     if rendered is None or not rendered.text:
         return fetch
-    if challenge or fetch.status in {0, 403, 503}:
-        fetch.status = rendered.status or fetch.status
+    if challenge or fetch.status in {0, 403, 404, 410, 503}:
+        fetch.status = resolved_js_status(fetch.status, rendered.status, rendered.text)
     fetch.text = rendered.text
     fetch.content_type = "text/html"
     fetch.ms += rendered.ms

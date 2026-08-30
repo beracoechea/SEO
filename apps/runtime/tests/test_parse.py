@@ -17,24 +17,24 @@ def test_parse_html_core_tags():
     html = """
     <html><head>
       <title> Home </title>
-      <meta name="description" content="Logicbus shop">
-      <link rel="canonical" href="https://www.logicbus.com.mx/">
+      <meta name="description" content="Industrial shop">
+      <link rel="canonical" href="https://www.example.com/">
     </head><body>
       <h1>Bienvenido</h1>
       <a href="/blog">Blog</a>
-      <a href="https://www.logicbus.com.mx/tienda">Tienda</a>
+      <a href="https://www.example.com/tienda">Tienda</a>
       <img src="a.png"><img alt="ok" src="b.png">
     </body></html>
     """
     p = parse_html(html)
     assert p["title"] == "Home"
     assert p["h1"] == "Bienvenido"
-    assert p["meta"] == "Logicbus shop"
-    assert p["canonical"] == "https://www.logicbus.com.mx/"
+    assert p["meta"] == "Industrial shop"
+    assert p["canonical"] == "https://www.example.com/"
     assert p["imgs"] == 2
     assert p["imgs_no_alt"] == 1
     assert "/blog" in p["links"]
-    assert "https://www.logicbus.com.mx/tienda" in p["links"]
+    assert "https://www.example.com/tienda" in p["links"]
 
 
 def test_robots_and_sitemap_count():

@@ -199,7 +199,7 @@ El runtime **no** se publica en Firebase Hosting.
    docker build -t seo-runtime:0.1.0 .
    ```
 
-3. Entregar a Logicbus / cliente: imagen o `docker compose` pinneado a `0.1.0`.
+3. Entregar al operador / cliente: imagen o `docker compose` pinneado a `0.1.0`.
 4. En el servidor LAN: `docker compose pull && docker compose up -d`.
 5. En la cáscara (ajustes de org): URL del runtime (`http://host:8080`) y botón “Probar”.
 
@@ -212,7 +212,7 @@ Rollback: levantar el tag anterior (`v0.0.9`). SQLite es volumen persistente; no
 | Alias | Uso |
 |-------|-----|
 | `dev` | Empleados desarrollando. Auth de prueba. |
-| `prod` | Usuarios reales (piloto Logicbus y clientes). |
+| `prod` | Usuarios reales (piloto y clientes). |
 
 Nunca apuntes el `.env.local` de desarrollo al proyecto `prod` para “probar un rato”.
 

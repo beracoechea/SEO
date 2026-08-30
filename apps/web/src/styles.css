@@ -196,7 +196,8 @@ h3 {
   color: inherit;
 }
 
-.icon-btn:disabled {
+.icon-btn:disabled,
+.icon-btn.is-disabled {
   opacity: 0.45;
   cursor: default;
   transform: none;

@@ -26,6 +26,11 @@ SPA_MARKERS = (
 SCRIPT_RE = re.compile(r"<script[\s\S]*?</script>", re.I)
 STYLE_RE = re.compile(r"<style[\s\S]*?</style>", re.I)
 TAG_RE = re.compile(r"<[^>]+>")
+ERROR_HEADING_RE = re.compile(
+    r"\b404\b|\b403\b|not found|no encontrada|no encontramos|p[aá]gina no existe|"
+    r"page not found|does not exist|error\s*404",
+    re.I,
+)
 
 
 def normalize_render_js(value: str | None) -> str:
@@ -41,12 +46,45 @@ def js_crawl_enabled(mode: str) -> bool:
     return True
 
 
+def has_spa_marker(html: str) -> bool:
+    low = (html or "").lower()
+    return any(marker in low for marker in SPA_MARKERS)
+
+
+def looks_like_error_document(html: str) -> bool:
+    parsed = parse_html(html or "")
+    blob = f"{parsed.get('title') or ''} {parsed.get('h1') or ''}"
+    return bool(ERROR_HEADING_RE.search(blob))
+
+
+def looks_like_live_page(html: str) -> bool:
+    if not html or looks_like_error_document(html):
+        return False
+    parsed = parse_html(html)
+    title = str(parsed.get("title") or "").strip()
+    h1 = str(parsed.get("h1") or "").strip()
+    if title and h1:
+        return True
+    text = TAG_RE.sub(" ", STYLE_RE.sub(" ", SCRIPT_RE.sub(" ", html)))
+    words = [w for w in text.split() if w]
+    return bool((title or h1) and len(words) >= 20)
+
+
+def resolved_js_status(http_status: int, rendered_status: int, html: str) -> int:
+    if 200 <= rendered_status < 400:
+        return rendered_status
+    if http_status >= 400 and looks_like_live_page(html):
+        return 200
+    if rendered_status > 0:
+        return rendered_status
+    return http_status
+
+
 def looks_like_js_shell(html: str) -> bool:
     blob = html or ""
     if len(blob.strip()) < 80:
         return True
-    low = blob.lower()
-    if not any(marker in low for marker in SPA_MARKERS):
+    if not has_spa_marker(blob):
         return False
     parsed = parse_html(blob)
     title = str(parsed.get("title") or "").strip()
@@ -77,6 +115,8 @@ def needs_js_render(
     if challenge:
         return True
     if status in {0, 403, 503}:
+        return True
+    if status in {404, 410} and (looks_like_js_shell(text) or has_spa_marker(text)):
         return True
     return looks_like_js_shell(text)
 
@@ -130,7 +170,19 @@ class JsRenderer:
             page = await self._context.new_page()
             page.set_default_timeout(20000)
             resp = await page.goto(url, wait_until="domcontentloaded", timeout=20000)
-            await asyncio.sleep(1.2)
+            try:
+                await page.wait_for_function(
+                    """() => {
+                      const title = (document.title || '').trim();
+                      const h1 = document.querySelector('h1');
+                      const root = document.querySelector('#root, #app, #__next, #__nuxt');
+                      const text = ((root && root.innerText) || (document.body && document.body.innerText) || '').trim();
+                      return title.length > 2 || (h1 && h1.innerText.trim().length > 2) || text.length > 80;
+                    }""",
+                    timeout=8000,
+                )
+            except Exception:
+                await asyncio.sleep(1.2)
             html = await page.content()
             status = resp.status if resp is not None else 0
             final = page.url or url

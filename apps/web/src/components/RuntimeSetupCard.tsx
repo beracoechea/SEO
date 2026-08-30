@@ -3,10 +3,10 @@ import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { downloadOrgInstaller } from "../lib/clientInstaller";
 import { pingRuntime } from "../lib/runtime";
-import { requestLocalRuntimeStart } from "../lib/runtimeLaunch";
+import { RUNTIME_START_PROTOCOL, requestLocalRuntimeStart } from "../lib/runtimeLaunch";
 import { IconBtn } from "./IconBtn";
 
-const START_WAIT_MS = 25000;
+const START_WAIT_MS = 90000;
 const START_POLL_MS = 1500;
 
 export function useRuntimeReady(runtimeUrl: string) {
@@ -116,6 +116,7 @@ export function RuntimeSetupCard({
         />
         <IconBtn
           label={starting ? t("engine.startingShort") : t("engine.retry")}
+          href={starting ? undefined : RUNTIME_START_PROTOCOL}
           showLabel
           disabled={starting}
           onClick={() => void onRetry()}

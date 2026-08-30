@@ -1,36 +1,39 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { RUNTIME_START_PROTOCOL, requestLocalRuntimeStart } from "./runtimeLaunch";
 
 describe("runtimeLaunch", () => {
   it("usa el protocolo que registra el instalador", () => {
-    expect(RUNTIME_START_PROTOCOL).toBe("logicbus-seo://start");
+    expect(RUNTIME_START_PROTOCOL).toBe("seo-monitor://start");
   });
 
-  it("dispara el protocolo con un clic sintético (gesto de usuario)", () => {
-    const clicks: string[] = [];
-    const a = {
-      href: "",
-      style: { display: "" },
-      click() {
-        clicks.push(this.href);
+  it("pide a Windows abrir el protocolo sin navegar la SPA", () => {
+    vi.useFakeTimers();
+    const removed: string[] = [];
+    const iframe = {
+      setAttribute(name: string, value: string) {
+        this[name] = value;
       },
       remove() {
-        clicks.push("removed");
+        removed.push("removed");
       },
-    };
+    } as Record<string, unknown> & { setAttribute: (n: string, v: string) => void; remove: () => void };
+    const appended: unknown[] = [];
     const doc = {
       body: {
-        appendChild(node: { href: string }) {
-          clicks.push(`append:${node.href}`);
+        appendChild(node: unknown) {
+          appended.push(node);
         },
       },
       createElement(tag: string) {
-        expect(tag).toBe("a");
-        return a;
+        expect(tag).toBe("iframe");
+        return iframe;
       },
     };
     requestLocalRuntimeStart(doc as unknown as Document);
-    expect(a.href).toBe(RUNTIME_START_PROTOCOL);
-    expect(clicks).toEqual([`append:${RUNTIME_START_PROTOCOL}`, RUNTIME_START_PROTOCOL, "removed"]);
+    expect(appended).toHaveLength(1);
+    expect(iframe.src).toBe(RUNTIME_START_PROTOCOL);
+    vi.advanceTimersByTime(4000);
+    expect(removed).toEqual(["removed"]);
+    vi.useRealTimers();
   });
 });

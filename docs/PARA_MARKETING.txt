@@ -1,6 +1,6 @@
 MONITOR TÉCNICO SEO
 Ficha para personas comunes y para el área de marketing
-Logicbus · agosto 2026
+agosto 2026
 
 Este archivo no es un manual técnico. Es para explicar el producto
 en una reunión, un correo o una propuesta. La guía de instalación
@@ -50,7 +50,7 @@ SÍ ES
   solo ve sus sitios.
   - Autohospedado en planta: un PC en la red interna.
     El historial no sale de ahí.
-    Logicbus genera un instalador desde Administración
+    El instalador se genera desde Administración
     (un archivo). Doble clic; no hace falta Docker ni BIOS.
     El cliente no configura IDs.
 
@@ -68,7 +68,7 @@ NO ES (no lo prometas)
 4. CÓMO SE VE EL SERVICIO
 ============================================================
 
-1. El cliente (o Logicbus en una demo) registra el sitio
+1. El cliente (o una demo interna) registra el sitio
    https://de-la-empresa.
 2. Se pulsa Escanear. El motor recorre home, robots.txt,
    sitemap y enlaces internos del mismo dominio.
@@ -105,7 +105,7 @@ A QUIÉN SE LO OFRECEMOS
     técnico independiente.
   - Quien no puede (o no quiere) mandar el crawl de su web
     a un SaaS en otro país.
-  - Prospectos: Logicbus escanea su https:// en una org de
+  - Prospectos: se escanea su https:// en una org de
     demostración y manda el informe. Eso abre la conversación.
 
 CÓMO ARMAR LA OFERTA (sin inventar precios aquí)
@@ -115,7 +115,7 @@ CÓMO ARMAR LA OFERTA (sin inventar precios aquí)
   B) Monitor mensual
      Runtime en su planta + cadencia semanal o mensual +
      un informe cuando el score baja.
-  C) Demo de ventas (interno Logicbus)
+  C) Demo de ventas (interna)
      En Administración → Demostraciones: se crea una org
      propia, se pega el origin del prospecto, se escanea y
      se comparte el PDF. No es un cliente facturado.
@@ -142,7 +142,7 @@ OBJECIONES FRECUENTES
   “¿Van a meter un agente en nuestro servidor?”
   Un programa en un PC de la red interna, puerto
   8080 solo en LAN. Login con Google. El historial del crawl
-  no sube a Firebase. Logicbus deja un instalador; no hay
+  no sube a Firebase. Hay un instalador; no hay
   que editar archivos ni Docker.
 
   “Nuestra web es de esas que cargan con JavaScript.”
@@ -179,7 +179,7 @@ NO DECIR
 
 
 ============================================================
-7. CÓMO PEDIR UNA DEMO INTERNA (Logicbus)
+7. CÓMO PEDIR UNA DEMO INTERNA
 ============================================================
 
 1. Entrar a la cáscara web con Google.
@@ -205,6 +205,6 @@ Versiones y publicación: docs/VERSIONES_GITHUB.md
 
 Si marketing necesita una captura o un PDF de ejemplo,
 usar una org de Demostraciones con un sitio público real
-del prospecto (con permiso) o un origin de Logicbus.
+del prospecto (con permiso) o un origin de ejemplo público.
 No uses datos de un cliente facturado como “demo genérica”
 sin avisar.

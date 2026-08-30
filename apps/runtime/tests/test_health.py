@@ -4,7 +4,7 @@ from app.main import app
 
 
 def test_health_ok(monkeypatch):
-    monkeypatch.setenv("ORG_ID", "logicbus-org-abcdef")
+    monkeypatch.setenv("ORG_ID", "demo-org-abcdef")
     with TestClient(app) as client:
         res = client.get("/api/health")
         assert res.status_code == 200

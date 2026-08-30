@@ -9,7 +9,7 @@ El versionado sigue [SemVer](https://semver.org/lang/es/).
 
 ### Added
 
-- El botón **Ya está listo** vuelve a levantar el motor Python en este PC si el usuario lo cerró (protocolo `logicbus-seo://start`, sin tareas extra). Hace falta haber corrido el instalador de `/admin` al menos una vez.
+- El botón **Ya está listo** vuelve a levantar el motor Python en este PC si el usuario lo cerró (protocolo `seo-monitor://start`, sin tareas extra). Hace falta haber corrido el instalador de `/admin` al menos una vez.
 
 ### Changed
 
@@ -18,14 +18,15 @@ El versionado sigue [SemVer](https://semver.org/lang/es/).
 
 ### Fixed
 
-- El motor corre oculto (`pythonw`, sin consola). Si se cierra o se cae, una tarea lo vuelve a levantar al iniciar sesión y cada 2 minutos.
+- **Ya está listo** no arrancaba el puerto 8080: Chrome ignoraba el clic sintético al protocolo, PowerShell se caía con el URL extra, y un 8080 ocupado abortaba el arranque. El botón es un enlace real `seo-monitor://start`, el instalador traga ese argumento, recicla el puerto y registra `arrancar.cmd`.
+- Tras un 404 de rutas SPA (React/Vue/Next sin rewrite), el motor reintenta con Chromium y, si la página sí pinta contenido, deja de marcarla como «no encontrada».
 
 ## [0.2.0] — 2026-08-23
 
 ### Removed
 
 - Avisos de 404 por webhook o correo (Discord, Teams, ntfy, SMTP): era demasiado complejo de configurar para los clientes.
-- Autoregistro de organizaciones: un Gmail cualquiera ya no puede crear un cliente. Logicbus da de alta la org en `/admin` e invita al equipo.
+- Autoregistro de organizaciones: un Gmail cualquiera ya no puede crear un cliente. Un administrador da de alta la org en `/admin` e invita al equipo.
 
 ### Changed
 

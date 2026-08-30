@@ -3,7 +3,7 @@ import { isPrivateOrigin } from "./origin";
 
 describe("isPrivateOrigin", () => {
   it("acepta sitios HTTPS públicos", () => {
-    expect(isPrivateOrigin("https://www.logicbus.com.mx")).toBe(false);
+    expect(isPrivateOrigin("https://www.example.com")).toBe(false);
     expect(isPrivateOrigin("https://shop.example.com/es")).toBe(false);
   });
 

@@ -33,7 +33,7 @@ https://github.com/beracoechea/SEO
 ```
 apps/web             SPA React + Vite
 apps/runtime         FastAPI (Python; en planta sin Docker)
-deploy/cliente       Compose opcional solo para Logicbus
+deploy/cliente       Compose opcional para desarrollo
 scripts/verify.ps1   Tester local
 .github/workflows    Tester en cada PR / push a main
 ```

@@ -6,7 +6,7 @@ Hay **dos piezas**. No se instalan igual:
 
 | Pieza | Quién la corre | Dónde | Para qué |
 |---|---|---|---|
-| Cáscara web (`apps/web`) | Logicbus (nosotros) | HTTPS (local o Firebase Hosting) | Login Google, orgs, sitios, equipo, **administración** |
+| Cáscara web (`apps/web`) | Quien publica la web | HTTPS (local o Firebase Hosting) | Login Google, orgs, sitios, equipo, **administración** |
 | Runtime (`apps/runtime`) | Cada cliente, en su red | Python embebido en un PC de planta (`C:\seo-runtime`) | Crawler, historial SQLite. **Los crawls no salen de su LAN** |
 
 El cliente **no** publica la web. El cliente **sí** levanta el runtime con el instalador de `/admin` (doble clic; no hace falta Docker ni BIOS). En desarrollo la cáscara arranca el motor sola; no hay pantalla de Ajustes.
@@ -19,7 +19,7 @@ Ficha para ventas y personas no técnicas: **[PARA_MARKETING.txt](PARA_MARKETING
 
 ## 0. Qué tienes que tener instalado
 
-### En tu máquina de desarrollo (Logicbus)
+### En tu máquina de desarrollo
 
 - Git
 - Node.js 22 LTS (o 20+)
@@ -110,7 +110,7 @@ uvicorn app.main:app --reload --port 8080
 
 Comprueba: http://localhost:8080/api/health debe devolver `"ok": true`.
 
-### 1.5 Runtime con Docker (solo Logicbus, opcional)
+### 1.5 Runtime con Docker (opcional, desarrollo)
 
 Desde la **raíz** del repo, si quieres probar el motor en un contenedor:
 
@@ -142,9 +142,9 @@ En `/admin` → **Demostraciones** el operador crea orgs propias (no son un clie
 
 ## 2. Instalar el runtime en un cliente
 
-Esto es lo que se hace en el PC de planta. Logicbus ya tiene la cáscara en HTTPS y la org creada. **El cliente no edita `.env` ni clona el repo ni toca la BIOS.** El instalador sale de `/admin` de esa org.
+Esto es lo que se hace en el PC de planta. La cáscara ya está en HTTPS y la org creada. **El cliente no edita `.env` ni clona el repo ni toca la BIOS.** El instalador sale de `/admin` de esa org.
 
-### 2.1 Lo que Logicbus hace en `/admin`
+### 2.1 Lo que se hace en `/admin`
 
 1. Abre **Clientes** → la organización.
 2. En **Motor en la planta**, confirma la **URL pública de la cáscara** (HTTPS de Hosting, no localhost).
@@ -156,15 +156,15 @@ Esto es lo que se hace en el PC de planta. Logicbus ya tiene la cáscara en HTTP
 1. Extrae el ZIP. **Doble clic** en el `.cmd`. Si Control inteligente de aplicaciones lo bloquea: clic derecho → **Propiedades** → **Desbloquear**. Si SmartScreen dice “Windows protegió tu PC”, **Más información** → **Ejecutar de todas formas**.
 2. La primera vez baja Python (en `C:\seo-runtime\python`) y Chromium. Tarda varios minutos. No hace falta Docker ni virtualización.
 3. Al terminar imprime `http://127.0.0.1:8080/api/health`.
-4. En la cáscara, en este mismo PC, pulsa **Ya está listo**. Ese botón también **vuelve a arrancar el motor** si lo cerraste (Windows puede pedir permiso una vez: Abrir Logicbus SEO). No hace falta pegar una URL LAN si escaneas desde esta máquina.
+4. En la cáscara, en este mismo PC, pulsa **Ya está listo**. Ese botón también **vuelve a arrancar el motor** si lo cerraste (Windows puede pedir permiso una vez: Abrir Monitor SEO). No hace falta pegar una URL LAN si escaneas desde esta máquina.
 
 No hace falta Git ni Node ni instalar Python o Docker a mano. El firewall se intenta abrir en perfil **privado**, puerto 8080; si no hay permisos, en este mismo PC el motor igual funciona.
 
-Si el script no puede bajar GitHub (repo privado o sin internet), Logicbus deja el tag descomprimido en `C:\seo-runtime` y vuelve a ejecutar el mismo `.cmd` (detecta `apps\runtime`, escribe `.env` e instala Python).
+Si el script no puede bajar GitHub (repo privado o sin internet), se deja el tag descomprimido en `C:\seo-runtime` y se vuelve a ejecutar el mismo `.cmd` (detecta `apps\runtime`, escribe `.env` e instala Python).
 
 ### 2.3 Actualizar el runtime del cliente
 
-El instalador de `/admin` deja en `C:\seo-runtime\actualizar.ps1` y dos tareas de Windows: **Logicbus SEO runtime** (al iniciar sesión y cada 2 minutos si el motor se cayó; corre **sin ventana**) y **Logicbus SEO runtime update** (cada día a las 03:20). También registra `logicbus-seo://start` para que **Ya está listo** arranque el motor desde la web si lo cerraste. El usuario no tiene que dejar abierta una consola de Python.
+El instalador de `/admin` deja en `C:\seo-runtime\actualizar.ps1` y dos tareas de Windows: **SEO Monitor runtime** (al iniciar sesión y cada 2 minutos si el motor se cayó; corre **sin ventana**) y **SEO Monitor runtime update** (cada día a las 03:20). También registra `seo-monitor://start` para que **Ya está listo** arranque el motor desde la web si lo cerraste. El usuario no tiene que dejar abierta una consola de Python.
 
 1. Si hay un crawl en curso, **no toca nada** (reintenta la próxima vez).
 2. Pregunta a GitHub si hay un tag más nuevo; si no, solo comprueba que el motor esté arriba.
@@ -272,7 +272,7 @@ Detalle de tags y Firebase Hosting: [VERSIONES_GITHUB.md](VERSIONES_GITHUB.md).
 | Web en local | `cd apps\web` → `npm run dev` |
 | Tests web | `cd apps\web` → `npm test` |
 | Runtime local | `cd apps\runtime` → `uvicorn app.main:app --port 8080` |
-| Runtime Docker (solo Logicbus) | `docker compose up -d --build` |
+| Runtime Docker (opcional) | `docker compose up -d --build` |
 | Runtime en cliente | `/admin` → Descargar instalador (Python en `C:\seo-runtime`) |
 | Tester completo local | `.\scripts\verify.ps1` |
 | Instalar freno de push | `.\scripts\install-git-hooks.ps1` |
@@ -288,7 +288,7 @@ Detalle de tags y Firebase Hosting: [VERSIONES_GITHUB.md](VERSIONES_GITHUB.md).
 | Google cierra el popup | Authorized domains; el origen debe ser `localhost` o HTTPS |
 | No aparece Administración | Falta `platformAdmins/{tuUid}` |
 | Runtime unreachable | Motor en marcha (`http://127.0.0.1:8080/api/health`), IP LAN, firewall, `CORS_ORIGIN` = origen de la cáscara |
-| `ERR_CONNECTION_REFUSED` a `127.0.0.1:8080` | El motor no está en este PC. Deja terminar el `.cmd` y pulsa **Ya está listo** (si ya estaba instalado y lo cerraste, el botón lo levanta). Si Windows no pregunta “Abrir Logicbus SEO”, vuelve a correr el instalador una vez. |
+| `ERR_CONNECTION_REFUSED` a `127.0.0.1:8080` | El motor no está en este PC. Deja terminar el `.cmd` y pulsa **Ya está listo** (si ya estaba instalado y lo cerraste, el botón lo levanta). Si Windows no pregunta “Abrir Monitor SEO”, vuelve a correr el instalador una vez. |
 | El instalador pide virtualización / Docker | Versión vieja del ZIP. Vuelve a **Descargar instalador** desde `/admin` (el motor ya no usa Docker). |
 | Puerto 8080 ocupado | Cierra Docker Desktop u otro programa en 8080 y reintenta el `.cmd` |
 | Sitio SPA sin titles | En el sitio, **Páginas con JavaScript** en Automático o Siempre; `playwright install chromium` en el venv |

@@ -87,9 +87,13 @@ describe("clientInstaller", () => {
     expect(script).toContain("CreateNoWindow");
     expect(script).toContain("RepetitionInterval");
     expect(script).toContain("Register-StartProtocol");
-    expect(script).toContain("Software\\Classes\\logicbus-seo");
-    expect(script).toContain("logicbus-seo://start");
+    expect(script).toContain("Software\\Classes\\seo-monitor");
+    expect(script).toContain("seo-monitor://start");
     expect(script).toContain("-Mode Start");
+    expect(script).toContain("ValueFromRemainingArguments");
+    expect(script).toContain("arrancar.cmd");
+    expect(script).toContain("\"%1\"");
+    expect(script).toContain("se recicla el proceso");
   });
 
   it("el archivo descargable es un .cmd que usa el PowerShell de Windows, no la Store", () => {
@@ -101,8 +105,8 @@ describe("clientInstaller", () => {
       runtimeVersion: "0.1.0",
     });
     expect(cmd).toContain("System32\\WindowsPowerShell\\v1.0\\powershell.exe");
-    expect(cmd).toContain("###LOGICBUS_SEO_PS###");
-    expect(cmd.indexOf("###LOGICBUS_SEO_PS###")).toBe(cmd.lastIndexOf("###LOGICBUS_SEO_PS###"));
+    expect(cmd).toContain("###SEO_MONITOR_PS###");
+    expect(cmd.indexOf("###SEO_MONITOR_PS###")).toBe(cmd.lastIndexOf("###SEO_MONITOR_PS###"));
     expect(cmd).toContain("$OrgId = 'org123'");
     expect(cmd).toContain("Get-RemoteFile");
     expect(cmd).toContain("Write-Progress");
@@ -112,7 +116,7 @@ describe("clientInstaller", () => {
     expect(cmd).not.toContain("Get-DockerExe");
     expect(cmd).not.toContain("SetupAdmin");
     expect(cmd).not.toContain("net session");
-    expect(cmd).toContain("'###'+'LOGICBUS_SEO_PS'+'###'");
+    expect(cmd).toContain("'###'+'SEO_MONITOR_PS'+'###'");
     expect(cmd.charCodeAt(0)).toBe("@".charCodeAt(0));
     expect(cmd).not.toContain("Start-Process -FilePath powershell.exe");
   });
