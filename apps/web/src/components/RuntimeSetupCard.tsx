@@ -1,9 +1,14 @@
-import { Download, RefreshCw } from "lucide-react";
+import { Copy, Download, RefreshCw } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { downloadOrgInstaller } from "../lib/clientInstaller";
 import { pingRuntime } from "../lib/runtime";
-import { RUNTIME_START_PROTOCOL, requestLocalRuntimeStart } from "../lib/runtimeLaunch";
+import {
+  RUNTIME_START_COMMAND,
+  copyRuntimeStartCommand,
+  preferredStartProtocol,
+  requestLocalRuntimeStart,
+} from "../lib/runtimeLaunch";
 import { IconBtn } from "./IconBtn";
 
 const START_WAIT_MS = 90000;
@@ -11,10 +16,12 @@ const START_POLL_MS = 1500;
 
 export function useRuntimeReady(runtimeUrl: string) {
   const [status, setStatus] = useState<"checking" | "ready" | "missing" | "starting">("checking");
+  const [startFailed, setStartFailed] = useState(false);
 
   const retry = useCallback(async () => {
-    setStatus("starting");
     requestLocalRuntimeStart();
+    setStartFailed(false);
+    setStatus("starting");
     const deadline = Date.now() + START_WAIT_MS;
     while (Date.now() < deadline) {
       const ok = await pingRuntime(runtimeUrl);
@@ -25,6 +32,7 @@ export function useRuntimeReady(runtimeUrl: string) {
       await new Promise((resolve) => window.setTimeout(resolve, START_POLL_MS));
     }
     setStatus("missing");
+    setStartFailed(true);
     return false;
   }, [runtimeUrl]);
 
@@ -50,6 +58,7 @@ export function useRuntimeReady(runtimeUrl: string) {
     missing: status === "missing",
     checking: status === "checking",
     starting: status === "starting",
+    startFailed,
     retry,
   };
 }
@@ -59,18 +68,21 @@ export function RuntimeSetupCard({
   missing,
   checking,
   starting,
+  startFailed,
   onRetry,
 }: {
   org: { id: string; name: string };
   missing: boolean;
   checking: boolean;
   starting?: boolean;
+  startFailed?: boolean;
   onRetry: () => void | Promise<unknown>;
 }) {
   const { t } = useTranslation();
   const [note, setNote] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [downloading, setDownloading] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   if (checking && !missing && !starting) {
     return <p className="muted">{t("engine.checking")}</p>;
@@ -92,6 +104,13 @@ export function RuntimeSetupCard({
     window.setTimeout(() => setDownloading(false), 8000);
   }
 
+  async function copyStart() {
+    const ok = await copyRuntimeStartCommand();
+    if (!ok) return;
+    setCopied(true);
+    window.setTimeout(() => setCopied(false), 2000);
+  }
+
   return (
     <div className="card stack engine-setup">
       <h2 style={{ margin: 0, fontSize: 18 }}>{t("engine.setupTitle")}</h2>
@@ -101,8 +120,21 @@ export function RuntimeSetupCard({
         <li>{t("engine.step2")}</li>
         <li>{t("engine.step3")}</li>
       </ol>
-      <p className="muted">{t("engine.consoleHint")}</p>
+      <p className="muted">{missing && !starting ? t("engine.needStart") : t("engine.consoleHint")}</p>
       {starting ? <div className="banner ok">{t("engine.starting")}</div> : null}
+      {startFailed && !starting ? (
+        <div className="banner warn stack">
+          <p style={{ margin: 0 }}>{t("engine.startFailed")}</p>
+          <code className="uid-box engine-command">{RUNTIME_START_COMMAND}</code>
+          <IconBtn
+            label={copied ? t("common.copied") : t("engine.copyStart")}
+            tone="sky"
+            showLabel
+            onClick={() => void copyStart()}
+            icon={<Copy size={18} />}
+          />
+        </div>
+      ) : null}
       {note ? <div className="banner ok">{note}</div> : null}
       {error ? <div className="banner warn">{error}</div> : null}
       <div className="row" style={{ flexWrap: "wrap", gap: 10 }}>
@@ -116,9 +148,9 @@ export function RuntimeSetupCard({
         />
         <IconBtn
           label={starting ? t("engine.startingShort") : t("engine.retry")}
-          href={starting ? undefined : RUNTIME_START_PROTOCOL}
           showLabel
-          disabled={starting}
+          href={preferredStartProtocol()}
+          className={starting ? "is-disabled" : ""}
           onClick={() => void onRetry()}
           icon={<RefreshCw size={18} />}
         />

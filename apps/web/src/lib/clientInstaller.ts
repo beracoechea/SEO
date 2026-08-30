@@ -124,7 +124,8 @@ function installerReadme(cmdName: string): string {
     "1. Extrae este ZIP (clic derecho > Extraer todo).",
     `2. Doble clic en ${cmdName}.`,
     "3. Espera a que la ventana diga Listo (la primera vez tarda: baja Python y Chromium).",
-    "4. En la web pulsa Ya esta listo. Ese boton tambien vuelve a levantar el motor si lo cerraste.",
+    "4. En el Escritorio queda Arrancar-motor-SEO.cmd: doble clic para encender el puerto 8080.",
+    "5. En la web pulsa Ya esta listo.",
     "",
     "No hace falta Docker ni entrar a la BIOS.",
     "",
@@ -211,6 +212,114 @@ export function installerCorsAllowlist(pageOrigin?: string): string {
 export function assertInstallerInput(input: InstallerInput): void {
   if (!input.orgId.trim()) throw new Error("installer.missingOrg");
   if (!input.firebaseProjectId.trim()) throw new Error("installer.missingFirebase");
+}
+
+/** ASCII-safe Desktop filename. Visible label is the window title "Arrancar motor SEO". */
+export const DESKTOP_STARTER_NAME = "Arrancar-motor-SEO.cmd";
+export const STARTER_CMD_NAME = DESKTOP_STARTER_NAME;
+export const STARTER_ZIP_NAME = "Arrancar-SEO.zip";
+
+/** Start-only .cmd: no GitHub/Python/Chromium download. Ignores protocol %1. */
+export function desktopStarterBatLines(): string[] {
+  return [
+    "@echo off",
+    "rem Extra arguments (protocol URL) are ignored.",
+    "setlocal EnableExtensions",
+    "title Arrancar motor SEO",
+    "set \"ROOT=C:\\seo-runtime\"",
+    "set \"PS=%SystemRoot%\\System32\\WindowsPowerShell\\v1.0\\powershell.exe\"",
+    "set \"PYW=%ROOT%\\python\\pythonw.exe\"",
+    "set \"PY=%ROOT%\\python\\python.exe\"",
+    "set \"APP=%ROOT%\\apps\\runtime\"",
+    "set \"MAIN=%APP%\\app\\main.py\"",
+    "set \"UPD=%ROOT%\\actualizar.ps1\"",
+    "set \"LAUNCHER=%PY%\"",
+    "if exist \"%ROOT%\" copy /Y \"%~f0\" \"%ROOT%\\arrancar.cmd\" >nul 2>&1",
+    "if not exist \"%MAIN%\" if not exist \"%ROOT%\\docker-compose.yml\" (",
+    "  echo No esta instalado el motor en C:\\seo-runtime.",
+    "  echo En la web pulsa Descargar instalador, extrae y abre el .cmd.",
+    "  pause",
+    "  exit /b 1",
+    ")",
+    "\"%PS%\" -NoProfile -Command \"try { $r=Invoke-WebRequest -UseBasicParsing http://127.0.0.1:8080/api/health -TimeoutSec 3; if ($r.Content -match 'ok') { exit 0 } } catch {}; exit 1\" >nul 2>&1",
+    "if not errorlevel 1 (",
+    "  echo El motor ya responde en http://127.0.0.1:8080",
+    "  ping -n 4 127.0.0.1 >nul",
+    "  exit /b 0",
+    ")",
+    "echo El puerto 8080 no responde; se recicla si esta ocupado.",
+    "for /f \"tokens=5\" %%a in ('netstat -ano ^| findstr \":8080\" ^| findstr \"LISTENING\"') do if not \"%%a\"==\"\" taskkill /F /PID %%a >nul 2>&1",
+    "ping -n 3 127.0.0.1 >nul",
+    "if exist \"%UPD%\" findstr /C:\"-Mode Start\" \"%UPD%\" >nul && (",
+    "  echo Arrancando el motor...",
+    "  \"%PS%\" -NoProfile -ExecutionPolicy Bypass -File \"%UPD%\" -Mode Start",
+    "  if not errorlevel 1 (",
+    "    echo Motor en http://127.0.0.1:8080",
+    "    ping -n 4 127.0.0.1 >nul",
+    "    exit /b 0",
+    "  )",
+    ")",
+    "if not exist \"%PY%\" if exist \"%PYW%\" set \"LAUNCHER=%PYW%\"",
+    "if exist \"%LAUNCHER%\" if exist \"%MAIN%\" (",
+    "  echo Levantando uvicorn en el puerto 8080...",
+    "  \"%PS%\" -NoProfile -Command \"Start-Process -FilePath '%LAUNCHER%' -ArgumentList @('-m','uvicorn','app.main:app','--host','0.0.0.0','--port','8080') -WorkingDirectory '%APP%' -WindowStyle Hidden\"",
+    "  echo Motor en http://127.0.0.1:8080",
+    "  ping -n 6 127.0.0.1 >nul",
+    "  exit /b 0",
+    ")",
+    "where docker >nul 2>&1",
+    "if not errorlevel 1 if exist \"%ROOT%\\docker-compose.yml\" (",
+    "  echo Levantando el motor con Docker...",
+    "  pushd \"%ROOT%\"",
+    "  docker compose up -d",
+    "  popd",
+    "  echo Motor en http://127.0.0.1:8080",
+    "  ping -n 8 127.0.0.1 >nul",
+    "  exit /b 0",
+    ")",
+    "echo No se pudo arrancar el motor. En la web pulsa Descargar instalador.",
+    "pause",
+    "exit /b 1",
+  ];
+}
+
+export function buildStarterCmd(): string {
+  return `${desktopStarterBatLines().join("\r\n")}\r\n`;
+}
+
+function installDesktopStarterFunction(): string[] {
+  return [
+    "function Save-UpdaterScript {",
+    "  if (-not $ScriptPath) { return }",
+    "  if (-not (Test-Path -LiteralPath $ScriptPath)) { return }",
+    "  try {",
+    "    New-Item -ItemType Directory -Force -Path $InstallRoot | Out-Null",
+    "    Copy-Item -LiteralPath $ScriptPath -Destination $UpdaterFile -Force",
+    "  } catch {",
+    "    Write-UpdateLog ('No se pudo guardar actualizar.ps1: ' + $_.Exception.Message)",
+    "  }",
+    "}",
+    "",
+    "function Install-DesktopStarter {",
+    "  $name = 'Arrancar-motor-SEO.cmd'",
+    "  $dest = Join-Path $InstallRoot 'arrancar.cmd'",
+    "  $bat = @(",
+    ...desktopStarterBatLines().map((line) => `    ${psQuote(line)},`),
+    "  )",
+    "  New-Item -ItemType Directory -Force -Path $InstallRoot | Out-Null",
+    "  $enc = New-Object Text.UTF8Encoding $false",
+    "  [IO.File]::WriteAllLines($dest, [string[]]$bat, $enc)",
+    "  $folders = @()",
+    "  try { $folders += [Environment]::GetFolderPath('Desktop') } catch {}",
+    "  try { $folders += [Environment]::GetFolderPath('CommonDesktopDirectory') } catch {}",
+    "  foreach ($folder in ($folders | Where-Object { $_ } | Select-Object -Unique)) {",
+    "    if (-not (Test-Path -LiteralPath $folder)) { continue }",
+    "    try { [IO.File]::WriteAllLines((Join-Path $folder $name), [string[]]$bat, $enc) } catch {}",
+    "  }",
+    "  Write-UpdateLog 'En el Escritorio: Arrancar-motor-SEO.cmd (doble clic para encender el puerto 8080).'",
+    "}",
+    "",
+  ];
 }
 
 export function buildClientInstaller(input: InstallerInput): string {
@@ -516,7 +625,7 @@ export function buildClientInstaller(input: InstallerInput): string {
     "  if (-not (Test-RuntimeDeps)) { Install-RuntimeDeps }",
     "  Write-UpdateLog 'Levantando el motor en segundo plano (sin ventana de Python)...'",
     "  $launcher = $PythonExe",
-    "  if (Test-Path $PythonW) { $launcher = $PythonW }",
+    "  if (-not (Test-Path $PythonExe) -and (Test-Path $PythonW)) { $launcher = $PythonW }",
     "  $psi = New-Object System.Diagnostics.ProcessStartInfo",
     "  $psi.FileName = $launcher",
     "  $psi.Arguments = '-m uvicorn app.main:app --host 0.0.0.0 --port 8080'",
@@ -559,9 +668,10 @@ export function buildClientInstaller(input: InstallerInput): string {
     "  netsh advfirewall firewall add rule name='SEO runtime LAN' dir=in action=allow protocol=TCP localport=8080 profile=private | Out-Null",
     "}",
     "",
+    ...installDesktopStarterFunction(),
     "function Register-SilentUpdate {",
     "  try {",
-    "    Copy-Item -Path $ScriptPath -Destination $UpdaterFile -Force",
+    "    Save-UpdaterScript",
     "    $psExe = Join-Path $env:SystemRoot 'System32\\WindowsPowerShell\\v1.0\\powershell.exe'",
     "    $startArgs = '-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File \"' + $UpdaterFile + '\" -Mode Start'",
     "    $updateArgs = '-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File \"' + $UpdaterFile + '\" -Mode Update'",
@@ -585,25 +695,20 @@ export function buildClientInstaller(input: InstallerInput): string {
     "",
     "function Register-StartProtocol {",
     "  try {",
-    "    $psExe = Join-Path $env:SystemRoot 'System32\\WindowsPowerShell\\v1.0\\powershell.exe'",
-    "    if (Test-Path $ScriptPath) { Copy-Item -Path $ScriptPath -Destination $UpdaterFile -Force }",
+    "    Save-UpdaterScript",
+    "    Install-DesktopStarter",
     "    $starter = Join-Path $InstallRoot 'arrancar.cmd'",
-    "    $startLine = '\"' + $psExe + '\" -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File \"' + $UpdaterFile + '\" -Mode Start'",
-    "    $bat = @(",
-    "      '@echo off',",
-    "      'schtasks /Run /TN \"SEO Monitor runtime\" >nul 2>&1',",
-    "      $startLine",
-    "    )",
-    "    Set-Content -Path $starter -Value $bat -Encoding ASCII",
-    "    $cmd = '\"' + $starter + '\" \"%1\"'",
+    "    $cmd = 'cmd.exe /c \"' + $starter + '\"'",
     "    $hkcu = [Microsoft.Win32.Registry]::CurrentUser",
-    "    $key = $hkcu.CreateSubKey('Software\\Classes\\seo-monitor')",
-    "    $key.SetValue('', 'URL:Monitor SEO')",
-    "    $key.SetValue('URL Protocol', '')",
-    "    $cmdKey = $hkcu.CreateSubKey('Software\\Classes\\seo-monitor\\shell\\open\\command')",
-    "    $cmdKey.SetValue('', $cmd)",
-    "    $key.Close()",
-    "    $cmdKey.Close()",
+    "    foreach ($scheme in @('seo-monitor','logicbus-seo')) {",
+    "      $key = $hkcu.CreateSubKey(('Software\\Classes\\' + $scheme))",
+    "      $key.SetValue('', 'URL:Monitor SEO')",
+    "      $key.SetValue('URL Protocol', '')",
+    "      $cmdKey = $hkcu.CreateSubKey(('Software\\Classes\\' + $scheme + '\\shell\\open\\command'))",
+    "      $cmdKey.SetValue('', $cmd)",
+    "      $key.Close()",
+    "      $cmdKey.Close()",
+    "    }",
     "    Write-UpdateLog 'Ya esta listo en la web puede levantar el motor (seo-monitor://start).'",
     "  } catch {",
     "    Write-UpdateLog ('No se registro el arranque desde la web: ' + $_.Exception.Message)",
@@ -642,10 +747,15 @@ export function buildClientInstaller(input: InstallerInput): string {
     "New-Item -ItemType Directory -Force -Path $InstallRoot | Out-Null",
     "New-Item -ItemType Directory -Force -Path $DataDir | Out-Null",
     "",
+    "Save-UpdaterScript",
+    "Install-DesktopStarter",
+    "",
     "if ($Mode -eq 'Start') {",
-    "  if (-not (Test-Path $AppMain)) { Write-UpdateLog 'Aun no hay motor instalado; se omite el arranque.'; exit 0 }",
     "  $null = $ProtocolArgs",
+    "  Save-UpdaterScript",
+    "  Install-DesktopStarter",
     "  Register-StartProtocol",
+    "  if (-not (Test-Path $AppMain)) { Write-UpdateLog 'Aun no hay motor instalado; se omite el arranque.'; exit 0 }",
     "  try {",
     "    Start-EngineOrThrow | Out-Null",
     "    Write-UpdateLog 'Motor en marcha.'",
@@ -683,7 +793,8 @@ export function buildClientInstaller(input: InstallerInput): string {
     "  }",
     "  $health = Start-EngineOrThrow",
     "  Set-Content -Path $VersionFile -Value $remote.Version -Encoding ASCII",
-    "  try { Copy-Item -Path $ScriptPath -Destination $UpdaterFile -Force } catch {}",
+    "  Save-UpdaterScript",
+    "  Install-DesktopStarter",
     "  Write-UpdateLog ('Actualizado a ' + $remote.Version + '. Historial en C:\\seo-runtime\\data intacto.')",
     "  exit 0",
     "}",
@@ -694,6 +805,7 @@ export function buildClientInstaller(input: InstallerInput): string {
     "$health = Start-EngineOrThrow",
     "try { Open-LanFirewall } catch { Write-Host 'No se abrio el firewall (hace falta administrador solo si otro PC de la oficina va a escanear). En ESTE PC el motor igual funciona.' }",
     "Register-SilentUpdate",
+    "Install-DesktopStarter",
     "",
     "$ips = @(Get-NetIPAddress -AddressFamily IPv4 -ErrorAction SilentlyContinue | Where-Object {",
     "  $_.IPAddress -notlike '127.*' -and $_.IPAddress -notlike '169.254.*'",
@@ -707,6 +819,7 @@ export function buildClientInstaller(input: InstallerInput): string {
     "Write-Host ($health | ConvertTo-Json -Compress)",
     "Write-Host ''",
     "Write-Host 'El motor corre oculto y se vuelve a abrir solo (al iniciar sesion y cada 2 minutos si se cayo). No expongas el 8080 a internet.'",
+    "Write-Host 'En el Escritorio: Arrancar-motor-SEO.cmd — doble clic para encender el puerto 8080.'",
     "Write-Host 'Vuelve a la web y pulsa Ya esta listo.'",
     "Invoke-Pause",
   ];
@@ -735,13 +848,41 @@ export function downloadOrgInstaller(org: { id: string; name: string }) {
 }
 
 export function downloadClientInstaller(input: InstallerInput) {
-  const zip = buildInstallerZip(input);
+  triggerZipDownload(buildInstallerZip(input), installerFileName(input.orgName));
+}
+
+function starterReadme(): string {
+  return [
+    "Arrancar el motor SEO (ya instalado)",
+    "",
+    "1. Extrae este ZIP.",
+    `2. Doble clic en ${STARTER_CMD_NAME}.`,
+    "3. Vuelve a la web: cuando el motor responda, puedes escanear.",
+    "",
+    "No reinstala Python. Solo enciende el puerto 8080.",
+    "Si dice que no hay motor, usa Descargar instalador.",
+    "",
+  ].join("\r\n");
+}
+
+export function buildStarterZip(): Uint8Array {
+  return zipStore([
+    { name: "LEEME.txt", data: new TextEncoder().encode(starterReadme()) },
+    { name: STARTER_CMD_NAME, data: new TextEncoder().encode(buildStarterCmd()) },
+  ]);
+}
+
+export function downloadRuntimeStarter() {
+  triggerZipDownload(buildStarterZip(), STARTER_ZIP_NAME);
+}
+
+function triggerZipDownload(zip: Uint8Array, filename: string) {
   const buffer = new ArrayBuffer(zip.byteLength);
   new Uint8Array(buffer).set(zip);
   const blob = new Blob([buffer], { type: "application/zip" });
   const link = document.createElement("a");
   link.href = URL.createObjectURL(blob);
-  link.download = installerFileName(input.orgName);
+  link.download = filename;
   link.click();
   URL.revokeObjectURL(link.href);
 }

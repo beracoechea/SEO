@@ -3,6 +3,7 @@ from app.parse import (
     assert_public_http_url,
     canonical_matches,
     count_sitemap_locs,
+    extract_embedded_page_hrefs,
     extract_locs,
     is_sitemap_index,
     parse_html,
@@ -35,6 +36,22 @@ def test_parse_html_core_tags():
     assert p["imgs_no_alt"] == 1
     assert "/blog" in p["links"]
     assert "https://www.example.com/tienda" in p["links"]
+
+
+def test_wix_viewer_model_pages():
+    html = """
+    <script type="application/json" id="wix-viewer-model">
+    {"siteFeaturesConfigs":{"router":{"pagesMap":{
+      "home":{"pageUriSEO":"inicio"},
+      "pop":{"pageUriSEO":"popup-sku2e"}
+    },"routes":{"./":{"pageId":"home"},"./servicios":{"pageId":"x"}}}}}
+    </script>
+    """
+    hrefs = extract_embedded_page_hrefs(html)
+    assert "/inicio" in hrefs
+    assert "/popup-sku2e" in hrefs
+    assert "/servicios" in hrefs
+    assert "/" not in hrefs
 
 
 def test_robots_and_sitemap_count():

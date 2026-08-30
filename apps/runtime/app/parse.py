@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import re
 from html.parser import HTMLParser
 from urllib.parse import urljoin, urlparse, urlunparse
@@ -29,6 +30,11 @@ ASSET_EXT = {
 }
 
 LOC_RE = re.compile(r"<loc>\s*([^<\s]+)\s*</loc>", re.I)
+WIX_MODEL_RE = re.compile(
+    r'<script[^>]+id=["\']wix-viewer-model["\'][^>]*>(.*?)</script>',
+    re.I | re.S,
+)
+PAGE_URI_SEO_RE = re.compile(r'"pageUriSEO"\s*:\s*"([^"]+)"')
 
 
 class _Page(HTMLParser):
@@ -80,6 +86,43 @@ class _Page(HTMLParser):
             self.title += data
         if self._in_h1:
             self.h1 += data
+
+
+def extract_embedded_page_hrefs(html: str) -> list[str]:
+    """Pages Wix keeps in viewer JSON even when the nav is in-page anchors."""
+    slugs: list[str] = []
+    seen: set[str] = set()
+
+    def add(raw: str) -> None:
+        slug = (raw or "").strip().lstrip("./").strip("/")
+        if not slug or slug in seen or len(slug) > 180:
+            return
+        if any(ch in slug for ch in ' \t\n"\'<>?#\\'):
+            return
+        seen.add(slug)
+        slugs.append(slug)
+
+    blob = html or ""
+    match = WIX_MODEL_RE.search(blob)
+    if match:
+        try:
+            data = json.loads(match.group(1))
+            router = (data.get("siteFeaturesConfigs") or {}).get("router") or {}
+            pages = router.get("pagesMap") or {}
+            if isinstance(pages, dict):
+                for page in pages.values():
+                    if isinstance(page, dict):
+                        add(str(page.get("pageUriSEO") or ""))
+            routes = router.get("routes") or {}
+            if isinstance(routes, dict):
+                for key in routes:
+                    add(str(key))
+        except (json.JSONDecodeError, TypeError, AttributeError):
+            pass
+    if not slugs:
+        for slug in PAGE_URI_SEO_RE.findall(blob):
+            add(slug)
+    return [f"/{slug}" for slug in slugs]
 
 
 def parse_html(html: str) -> dict[str, str | int | list[str]]:

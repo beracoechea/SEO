@@ -18,7 +18,8 @@ El versionado sigue [SemVer](https://semver.org/lang/es/).
 
 ### Fixed
 
-- **Ya está listo** no arrancaba el puerto 8080: Chrome ignoraba el clic sintético al protocolo, PowerShell se caía con el URL extra, y un 8080 ocupado abortaba el arranque. El botón es un enlace real `seo-monitor://start`, el instalador traga ese argumento, recicla el puerto y registra `arrancar.cmd`.
+- En sitios Wix, el crawl también toma las páginas del JSON `wix-viewer-model` (`pageUriSEO`), no solo `<a href>` y el sitemap. Un one-pager sigue saliendo con 1–2 URLs si el menú solo hace scroll a secciones.
+- **Ya está listo** no puede depender del protocolo del navegador ni de `actualizar.ps1` (en planta a menudo no existe). El instalador deja `Arrancar-motor-SEO.cmd` en el Escritorio y `C:\seo-runtime\arrancar.cmd`: doble clic enciende el puerto 8080 (uvicorn o Docker si aplica). Copia `actualizar.ps1` al inicio del install.
 - Tras un 404 de rutas SPA (React/Vue/Next sin rewrite), el motor reintenta con Chromium y, si la página sí pinta contenido, deja de marcarla como «no encontrada».
 
 ## [0.2.0] — 2026-08-23

@@ -4,6 +4,8 @@ import {
   buildClientInstaller,
   buildInstallerCmd,
   buildInstallerZip,
+  buildStarterCmd,
+  buildStarterZip,
   defaultShellOrigin,
   installerCmdFileName,
   installerCorsAllowlist,
@@ -84,16 +86,31 @@ describe("clientInstaller", () => {
     expect(script).toContain("bajados");
     expect(script).not.toContain("campo motor LAN");
     expect(script).toContain("pythonw.exe");
+    expect(script).toContain("if (-not (Test-Path $PythonExe) -and (Test-Path $PythonW))");
     expect(script).toContain("CreateNoWindow");
     expect(script).toContain("RepetitionInterval");
     expect(script).toContain("Register-StartProtocol");
-    expect(script).toContain("Software\\Classes\\seo-monitor");
     expect(script).toContain("seo-monitor://start");
+    expect(script).toContain("foreach ($scheme in @('seo-monitor','logicbus-seo'))");
+    expect(script).toContain("Software\\Classes\\' + $scheme");
     expect(script).toContain("-Mode Start");
     expect(script).toContain("ValueFromRemainingArguments");
+    expect(script).toContain("[string[]]$ProtocolArgs");
+    expect(script).toContain("$null = $ProtocolArgs");
     expect(script).toContain("arrancar.cmd");
-    expect(script).toContain("\"%1\"");
+    expect(script).toContain("$cmd = 'cmd.exe /c \"' + $starter + '\"'");
+    expect(script).toContain("Extra arguments (protocol URL) are ignored.");
+    expect(script).not.toContain('"%1"');
     expect(script).toContain("se recicla el proceso");
+    expect(script).toContain("Install-DesktopStarter");
+    expect(script).toContain("Save-UpdaterScript");
+    expect(script).toContain("Copy-Item -LiteralPath $ScriptPath -Destination $UpdaterFile");
+    expect(script).toContain("GetFolderPath('Desktop')");
+    expect(script).toContain("GetFolderPath('CommonDesktopDirectory')");
+    expect(script).toContain("Arrancar-motor-SEO.cmd");
+    expect(script).toContain("Ya hay codigo del motor en C:\\seo-runtime; no se vuelve a bajar.");
+    expect(script.indexOf("Save-UpdaterScript")).toBeLessThan(script.lastIndexOf("if ($Mode -eq 'Start')"));
+    expect(script).toContain("function Install-RuntimeSource");
   });
 
   it("el archivo descargable es un .cmd que usa el PowerShell de Windows, no la Store", () => {
@@ -137,5 +154,34 @@ describe("clientInstaller", () => {
     expect(text).toContain("$OrgId = 'org123'");
     expect(text).not.toContain("\uFEFF@echo");
     expect(text).toContain("@echo off");
+  });
+
+  it("el script de Escritorio enciende C:\\seo-runtime sin bajar Python ni GitHub", () => {
+    const cmd = buildStarterCmd();
+    expect(cmd.charCodeAt(0)).toBe("@".charCodeAt(0));
+    expect(cmd).toContain("C:\\seo-runtime");
+    expect(cmd).toContain("python.exe");
+    expect(cmd).toContain("pythonw.exe");
+    expect(cmd).toContain("'uvicorn'");
+    expect(cmd).toContain("Start-Process");
+    expect(cmd).toContain("ping -n");
+    expect(cmd).toContain("-Mode Start");
+    expect(cmd).toContain("docker compose");
+    expect(cmd).toContain("Descargar instalador");
+    expect(cmd).toContain("Extra arguments (protocol URL) are ignored.");
+    expect(cmd).toContain("se recicla si esta ocupado");
+    expect(cmd).not.toContain("%1");
+    expect(cmd).not.toContain("seo-monitor://");
+    expect(cmd).not.toContain("github.com");
+    expect(cmd).not.toContain("python.org");
+    expect(cmd).not.toContain("Get-RemoteFile");
+    expect(cmd).not.toContain("playwright install");
+    expect(cmd).not.toContain("Logicbus");
+    expect(cmd).not.toContain("logicbus");
+    const zip = buildStarterZip();
+    const text = new TextDecoder().decode(zip);
+    expect(zip[0]).toBe(0x50);
+    expect(text).toContain("Arrancar-motor-SEO.cmd");
+    expect(text).toContain("LEEME.txt");
   });
 });

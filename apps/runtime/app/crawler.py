@@ -24,6 +24,7 @@ from app.indexation import robots_directives
 from app.parse import (
     assert_public_http_url,
     canonical_matches,
+    extract_embedded_page_hrefs,
     extract_locs,
     is_asset_url,
     is_sitemap_index,
@@ -467,7 +468,10 @@ def _record_page(
         ),
     )
     links = parsed.get("links") if expect_html and fetch.status < 400 else []
-    return list(links) if isinstance(links, list) else []
+    out = list(links) if isinstance(links, list) else []
+    if expect_html and fetch.status < 400 and html:
+        out.extend(extract_embedded_page_hrefs(html))
+    return out
 
 
 def _merge_issues(existing: str, extra: list[str]) -> str:

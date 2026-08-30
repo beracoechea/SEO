@@ -223,6 +223,7 @@ export function SitePlaceholderPage() {
           missing={engine.missing}
           checking={engine.checking}
           starting={engine.starting}
+          startFailed={engine.startFailed}
           onRetry={engine.retry}
         />
       ) : null}

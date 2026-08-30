@@ -854,6 +854,12 @@ label {
   color: var(--primary);
 }
 
+.engine-command {
+  display: block;
+  white-space: pre-wrap;
+  line-height: 1.4;
+}
+
 .spinner {
   width: 28px;
   height: 28px;
