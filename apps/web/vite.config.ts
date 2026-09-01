@@ -108,6 +108,17 @@ export default defineConfig(({ mode }) => {
     optimizeDeps: {
       include: ["exceljs", "jspdf", "jspdf-autotable"],
     },
+    experimental: {
+      renderBuiltUrl(filename) {
+        return `/${filename.replace(/^\//, "")}`;
+      },
+    },
+    build: {
+      modulePreload: {
+        resolveDependencies: (_filename, deps) =>
+          deps.map((dep) => (dep.startsWith("/") ? dep : `/${dep.replace(/^\.\//, "")}`)),
+      },
+    },
     server: {
       port: 5173,
       proxy: {

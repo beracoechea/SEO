@@ -62,6 +62,11 @@ ok("Dockerfile uvicorn 8080", dockerfile.includes("uvicorn") && dockerfile.inclu
 ok("runtime POST crawls", read("apps/runtime/app/main.py").includes("/api/sites/{site_id}/crawls"));
 ok("runtime SQLite snapshots", read("apps/runtime/app/db.py").includes("CREATE TABLE IF NOT EXISTS snapshots"));
 ok("web proxy runtime", read("apps/web/vite.config.ts").includes('"/runtime"'));
+ok("vite emite assets con / inicial", read("apps/web/vite.config.ts").includes("renderBuiltUrl"));
+ok(
+  "Hosting no cachea index.html 1h",
+  JSON.stringify(json("firebase.json").hosting || {}).includes("no-cache"),
+);
 
 const requiredFiles = [
   "docs/INSTALACION.md",
